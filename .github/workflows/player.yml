@@ -1,0 +1,76 @@
+# Builds and tests on Linux, Windows and macOS, and packages a zip per OS
+# (packaging/package.cmake) as a build artifact.
+name: player
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-22.04
+            shell: bash
+            configure: ''
+          - name: windows-x64
+            os: windows-2022
+            shell: pwsh  # Git Bash's /usr/bin/link would hide MSVC's linker
+            configure: -G Ninja
+          - name: macos-universal
+            os: macos-14
+            shell: bash
+            configure: '"-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15'
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Linux packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libgl1-mesa-dev libx11-dev libxext-dev libxrandr-dev \
+            libxcursor-dev libdbus-1-dev libjack-jackd2-dev liblilv-dev lv2-dev
+
+      - name: MSVC environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release ${{ matrix.configure }}
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      # The package bundles the shareable model (MODELS.md) in a build of its
+      # own: a build with bundled models runs only the bundled-model tests.
+      - name: Configure the package
+        run: cmake -S . -B build/release -DCMAKE_BUILD_TYPE=Release ${{ matrix.configure }} -DG2M_BUNDLED_MODELS=models/v1-0-alpha.g2m -DG2M_PACKAGE_SHAREABLE=ON
+
+      - name: Build the package
+        run: cmake --build build/release --parallel
+
+      - name: Test the package
+        run: ctest --test-dir build/release --output-on-failure
+
+      - name: Package
+        run: cmake --build build/release --target g2m-package
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: g2m-player-${{ matrix.name }}
+          path: build/release/package/*.zip
+          if-no-files-found: error

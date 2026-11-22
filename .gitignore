@@ -1,0 +1,9 @@
+build/
+tmp/
+models/*
+!models/v1-0-alpha.g2m
+.vscode/
+.cache/
+compile_commands.json
+__pycache__/
+CLAUDE.local.md
