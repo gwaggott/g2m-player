@@ -528,7 +528,7 @@ Each step is a commit on `player-release` with tests. CI runs from step 7.
      since 2026-11-22 it is `.github/workflows/player.yml`, on in the
      public repository `gwaggott/g2m-player`.
      - `player.yml`: Linux x86_64 (Ubuntu 22.04),
-       Windows x64 (MSVC through `ilammy/msvc-dev-cmd`, Ninja) and macOS
+       Windows x64 (MSVC through `vcvars64.bat`, Ninja) and macOS
        universal (arm64 + x86_64, 10.15+): configure, build, `ctest`, the
        `g2m-package` target, the zip kept as an artifact. No models were
        bundled then: the repository had none that may be shared. Since
