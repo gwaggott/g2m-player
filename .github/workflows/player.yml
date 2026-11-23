@@ -95,8 +95,8 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: g2m-player-${{ matrix.name }}
           path: build/release/package/*.zip
+          archive: false  # the package is already a zip; named after it
           if-no-files-found: error
 
       - name: Errors as annotations

@@ -69,7 +69,7 @@ bundled model may be shared.
 packages on Linux x86_64 and ARM64 (Ubuntu 22.04; the ARM64 package, with
 a `raspberry-pi/` folder, is for the Raspberry Pi), Windows x64 (MSVC, Ninja) and
 macOS universal (arm64 and x86_64, 10.15 or later) on every push, and
-keeps each zip as a build artifact. Its packages bundle
+keeps each zip as a build artifact, as is (not zipped again). Its packages bundle
 one model, `models/v1-0-alpha.g2m` (the only model in the repository;
 `MODELS.md` has its data and credits), built in a second build directory,
 `build/release`, with `-DG2M_BUNDLED_MODELS=models/v1-0-alpha.g2m
