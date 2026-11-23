@@ -76,7 +76,7 @@ jobs:
       # The package bundles the shareable model (MODELS.md) in a build of its
       # own: a build with bundled models runs only the bundled-model tests.
       - name: Configure the package
-        run: cmake -S . -B build/release -DCMAKE_BUILD_TYPE=Release ${{ matrix.configure }} -DG2M_BUNDLED_MODELS=models/v1-0-alpha.g2m -DG2M_PACKAGE_SHAREABLE=ON
+        run: cmake -S . -B build/release -DCMAKE_BUILD_TYPE=Release ${{ matrix.configure }} "-DG2M_BUNDLED_MODELS=models/v1-0-alpha.g2m" -DG2M_PACKAGE_SHAREABLE=ON  # quoted for PowerShell
 
       - name: Build the package
         run: cmake --build build/release --parallel
