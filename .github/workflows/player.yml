@@ -22,16 +22,16 @@ jobs:
             shell: pwsh  # Git Bash's /usr/bin/link would hide MSVC's linker
             configure: -G Ninja
           - name: macos-universal
-            os: macos-14
+            os: macos-15
             shell: bash
-            configure: '"-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15'
+            configure: '"-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" "-DCMAKE_OSX_DEPLOYMENT_TARGET=10.15"'  # quoted: PowerShell splits -D...=10.15 at the dot
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     defaults:
       run:
         shell: ${{ matrix.shell }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -42,23 +42,41 @@ jobs:
           sudo apt-get install -y pkg-config libgl1-mesa-dev libx11-dev libxext-dev libxrandr-dev \
             libxcursor-dev libdbus-1-dev libjack-jackd2-dev liblilv-dev lv2-dev
 
+      # vcvars64.bat's environment, for the later steps (instead of
+      # ilammy/msvc-dev-cmd, which still runs on Node.js 20)
       - name: MSVC environment
         if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          cmd /c "`"$vs\VC\Auxiliary\Build\vcvars64.bat`" >nul && set" | ForEach-Object {
+            if ($_ -match '^([^=]+)=(.*)$') { "$($matches[1])=$($matches[2])" | Out-File $env:GITHUB_ENV -Append -Encoding utf8 }
+          }
 
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release ${{ matrix.configure }}
+        shell: pwsh
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release ${{ matrix.configure }} 2>&1 | Tee-Object -FilePath configure.log
+          exit $LASTEXITCODE
 
+      # Configure, build and test output also go to logs, whose errors the last step
+      # repeats as annotations (which anyone can read; the logs need a login)
       - name: Build
-        run: cmake --build build --parallel
+        shell: pwsh
+        run: |
+          cmake --build build --parallel 2>&1 | Tee-Object -FilePath build.log
+          exit $LASTEXITCODE
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure
+        shell: pwsh
+        run: |
+          ctest --test-dir build --output-on-failure 2>&1 | Tee-Object -FilePath test.log
+          exit $LASTEXITCODE
 
       # The package bundles the shareable model (MODELS.md) in a build of its
       # own: a build with bundled models runs only the bundled-model tests.
       - name: Configure the package
-        run: cmake -S . -B build/release -DCMAKE_BUILD_TYPE=Release ${{ matrix.configure }} -DG2M_BUNDLED_MODELS=models/v1-0-alpha.g2m -DG2M_PACKAGE_SHAREABLE=ON
+        run: cmake -S . -B build/release -DCMAKE_BUILD_TYPE=Release ${{ matrix.configure }} "-DG2M_BUNDLED_MODELS=models/v1-0-alpha.g2m" -DG2M_PACKAGE_SHAREABLE=ON  # quoted for PowerShell
 
       - name: Build the package
         run: cmake --build build/release --parallel
@@ -69,8 +87,25 @@ jobs:
       - name: Package
         run: cmake --build build/release --target g2m-package
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: g2m-player-${{ matrix.name }}
           path: build/release/package/*.zip
           if-no-files-found: error
+
+      - name: Errors as annotations
+        if: failure()
+        shell: pwsh
+        run: |
+          $lines = foreach ($log in 'configure.log', 'build.log', 'test.log') {
+            if (Test-Path $log) {
+              Select-String -Path $log -Pattern 'error|FAILED|Failed|undefined|Could NOT|not found' -Context 0, 3 | ForEach-Object {
+                "$log`: $($_.Line)"
+                if ($_.Line -match 'CMake Error') { $_.Context.PostContext | ForEach-Object { "  $_" } }
+              }
+            }
+          }
+          $lines = @($lines | Select-Object -First 60)
+          for ($i = 0; $i -lt $lines.Count; $i += 15) {
+            "::error title=$($i / 15 + 1)::" + (($lines[$i..([Math]::Min($i + 14, $lines.Count - 1))]) -join '%0A')
+          }

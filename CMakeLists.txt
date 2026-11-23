@@ -6,6 +6,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+if(MSVC)
+  # the real __cplusplus (LVGL.hpp checks it), and UTF-8 sources and strings (the UI's labels)
+  add_compile_options(/Zc:__cplusplus /utf-8)
+endif()
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
@@ -17,7 +21,11 @@ add_subdirectory(core)
 
 find_package(PkgConfig)
 
-# The plugin (LV2, VST3, CLAP, standalone) with DPF
+# The plugin (LV2, VST3, CLAP, standalone) with DPF. The Windows SDK's OpenGL headers stop at
+# version 1.1, and DPF's and the UI's OpenGL code needs Khronos's glext.h: first on every path.
+if(WIN32)
+  include_directories(BEFORE ${PROJECT_SOURCE_DIR}/external/khronos)
+endif()
 add_subdirectory(external/dpf)
 
 # LVGL for the plugin's UI, configured by plugin/ui/lv_conf.h

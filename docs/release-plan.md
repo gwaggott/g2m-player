@@ -528,7 +528,7 @@ Each step is a commit on `player-release` with tests. CI runs from step 7.
      since 2026-11-22 it is `.github/workflows/player.yml`, on in the
      public repository `gwaggott/g2m-player`.
      - `player.yml`: Linux x86_64 (Ubuntu 22.04),
-       Windows x64 (MSVC through `ilammy/msvc-dev-cmd`, Ninja) and macOS
+       Windows x64 (MSVC through `vcvars64.bat`, Ninja) and macOS
        universal (arm64 + x86_64, 10.15+): configure, build, `ctest`, the
        `g2m-package` target, the zip kept as an artifact. No models were
        bundled then: the repository had none that may be shared. Since
@@ -542,8 +542,21 @@ Each step is a commit on `player-release` with tests. CI runs from step 7.
        (for users), `THIRD_PARTY.md` and the licence texts from the
        submodules. Checked on Linux: the zip is laid out as intended, and
        the local build with private models is refused.
-     - Not yet: the Windows and macOS builds have never been compiled
-       (no compiler for them here), so the first run will need fixes;
+     - First runs, 2026-11-22/23 (branch `ci-fixes`): all three pass,
+       packages included, after these fixes. macOS: `macos-14` is no
+       longer offered (now `macos-15`); `g2m.clap` is a bundle, so it is
+       installed as a folder; Apple's libc++ has no floating-point
+       `from_chars` for a 10.15 target, so `json.cpp` reads numbers with a
+       classic-locale stream there (`G2M_JSON_STREAM_NUMBERS`). Windows
+       (MSVC): Khronos's `glext.h` (`external/khronos/`), as the SDK's
+       OpenGL headers stop at 1.1; `/Zc:__cplusplus` (LVGL.hpp checks it)
+       and `/utf-8`; no GNU `?:` in `LVGL.cpp`; `winmm` for DPF's
+       `d_gettime_ms`. The workflow: Node.js 24 actions, the MSVC
+       environment from `vcvars64.bat`, and arguments with a dot quoted
+       (PowerShell splits `-DX=a.b` at the dot). Configure, build and test
+       output goes to logs whose errors are repeated as annotations,
+       which can be read without signing in.
+     - Not yet: the plugins tried in hosts on Windows and macOS;
        `g2m-bench` on the CI machines needs a full-size model the
        repository can hold (a random-weights one would do: time doesn't
        depend on the weights); signing (open); a release step (packages

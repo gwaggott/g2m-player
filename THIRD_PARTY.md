@@ -13,6 +13,7 @@ submodules in `external/` by `packaging/package.cmake`).
 | DejaVu Sans (in DPF's OpenGL library) | DPF's | DPF's default font, linked with it | Bitstream Vera / DejaVu | `DejaVuSans.txt` |
 | [choc](https://github.com/Tracktion/choc) (in DPF) | DPF's | DPF's helpers | ISC | `choc.md` |
 | [LVGL](https://github.com/lvgl/lvgl) | 9.4.0 | the UI's widgets and drawing | MIT | `LVGL.txt` |
+| [OpenGL headers](https://github.com/KhronosGroup/OpenGL-Registry) `GL/glext.h` and `KHR/khrplatform.h`, by the Khronos Group | 20220530 | DPF's OpenGL code on Windows (in `external/khronos/`) | MIT | (in each header) |
 | Montserrat font (in LVGL) | LVGL's | the UI's text | SIL Open Font Licence 1.1 | (LVGL's distribution) |
 
 The UI's LVGL wrapper (`plugin/ui/LVGL.hpp`, `LVGL.cpp`) is adapted from

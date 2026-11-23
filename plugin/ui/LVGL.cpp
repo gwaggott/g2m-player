@@ -99,8 +99,9 @@ private:
        #else
         const double scaleFactor = self->getTopLevelWidget()->getScaleFactor();
        #endif
-        const uint width = self->getWidth() ?: 640 * scaleFactor;
-        const uint height = self->getHeight() ?: 480 * scaleFactor;
+        // g2m: no GNU ?: (MSVC)
+        const uint width = self->getWidth() != 0 ? self->getWidth() : 640 * scaleFactor;
+        const uint height = self->getHeight() != 0 ? self->getHeight() : 480 * scaleFactor;
 
         lv_area_set(&updatedArea, 0, 0, width, height);
 
