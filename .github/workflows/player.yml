@@ -54,9 +54,12 @@ jobs:
           }
 
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release ${{ matrix.configure }}
+        shell: pwsh
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release ${{ matrix.configure }} 2>&1 | Tee-Object -FilePath configure.log
+          exit $LASTEXITCODE
 
-      # Build and test output also go to logs, whose errors the last step
+      # Configure, build and test output also go to logs, whose errors the last step
       # repeats as annotations (which anyone can read; the logs need a login)
       - name: Build
         shell: pwsh
@@ -94,8 +97,8 @@ jobs:
         if: failure()
         shell: pwsh
         run: |
-          $lines = foreach ($log in 'build.log', 'test.log') {
-            if (Test-Path $log) { Select-String -Path $log -Pattern 'error|FAILED|Failed|undefined' | ForEach-Object { "$log`: $($_.Line)" } }
+          $lines = foreach ($log in 'configure.log', 'build.log', 'test.log') {
+            if (Test-Path $log) { Select-String -Path $log -Pattern 'error|FAILED|Failed|undefined|Could NOT|not found' | ForEach-Object { "$log`: $($_.Line)" } }
           }
           $lines = @($lines | Select-Object -First 60)
           for ($i = 0; $i -lt $lines.Count; $i += 15) {
