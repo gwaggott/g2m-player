@@ -12,7 +12,8 @@ trained to), plus at most one 1.33 ms block.
 The **plugin** is built with [DPF](https://github.com/DISTRHO/DPF) as LV2,
 VST3, CLAP and a standalone app, from one source. It is a thin layer over
 a portable **C++17 core library**, which other targets can reuse, such as
-a Raspberry Pi class board. So far it is built and tested on Linux. The
+a Raspberry Pi class board. It builds and passes its tests on Linux, Windows (MSVC) and macOS
+(universal) in CI, but has been tried in hosts only on Linux. The
 plan for a release others can install is
 [docs/release-plan.md](docs/release-plan.md).
 
@@ -135,7 +136,7 @@ audio effect. Checked so far, all on Linux:
 | Bitwig, Ardour | not yet | not yet | not yet | |
 
 Presets saved in one format load in another (LV2 to CLAP). The
-standalone app, Windows and macOS are untried.
+standalone app, and hosts on Windows and macOS, are untried.
 
 In REAPER: choose the model in the plugin's window, then put an
 instrument after the plugin in the same FX chain to play its MIDI. The
