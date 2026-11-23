@@ -79,7 +79,8 @@ one model, `models/v1-0-alpha.g2m` (the only model in the repository;
 The LV2 plugin runs headless on a Raspberry Pi 4 with a synth, in
 mod-host under JACK: [`docs/raspberry-pi.md`](docs/raspberry-pi.md), with
 `packaging/raspberry-pi/start-g2m.sh` to start it. It needs a format
-version 6 (float16) model.
+version 6 (float16) model, as the bundled one is; how much of the Pi's
+time the bundled model takes hasn't been measured yet.
 
 ## Models
 

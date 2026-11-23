@@ -31,8 +31,11 @@ cmake --build build -j4 && ctest --test-dir build && cmake --install build   # i
 
 Bundle a format version 6 model: its float16 weights are what make it fit
 on the Pi (`performance-plan.md`, "Float16 weights on the Pi 4"). The
-current one is private (made with IDMT and the MDM Strat), so this build is
-for the Pi only, not to be shared.
+one above is private (made with IDMT and the MDM Strat), so that build is
+for the Pi only, not to be shared. The shareable `models/v1-0-alpha.g2m`
+is version 6 too (since 2026-11-23), but not projected, so it does more
+work per block than `mdm-pitch-offset-p999-f16`: not yet measured on the
+Pi.
 
 ## Run
 

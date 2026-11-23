@@ -574,7 +574,10 @@ Each step is a commit on `player-release` with tests. CI runs from step 7.
    is the only model in the repository (`models/` stays git-ignored for
    the rest) and the only one in CI's packages; `MODELS.md` has its
    credits. The code is under GPL-3.0-or-later and the model under CC BY
-   4.0. Published 2026-11-22 as `gwaggott/g2m-player` (public, from a
+   4.0. Since 2026-11-23 it is the same model exported as format version 6
+   (float16 weights, 2.5 MB; float16 is now the exporter's default): on
+   the validation set its scores match float32's to four decimals, and on
+   five test files 3 of 3,772 note-ons differ. Published 2026-11-22 as `gwaggott/g2m-player` (public, from a
    single commit, CI on).
 
 Steps 2–4 are independent of each other and of the UI. Step 8 is in

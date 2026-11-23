@@ -5,8 +5,8 @@ The model bundled with the player, and the data it was trained on.
 ## v1-0-alpha
 
 `models/v1-0-alpha.g2m`, the only bundled model and the default: an alpha
-release. Format version 4 (MPE heads: string, onset type and per-note
-pitch bend), float32 weights, 5.1 MB. Trained 2026-11-22 (the run
+release. Format version 6 (MPE heads: string, onset type and per-note
+pitch bend; float16 weights), 2.5 MB. Trained 2026-11-22 (the run
 `release-as72`; the training code isn't public), with the decoder's legato threshold
 set to 0.9.
 
