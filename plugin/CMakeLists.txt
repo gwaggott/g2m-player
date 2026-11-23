@@ -60,6 +60,9 @@ if(bundled_files)
   endforeach()
 endif()
 target_link_libraries(g2m PUBLIC g2m_core g2m_presets)
+if(WIN32)
+  target_link_libraries(g2m PUBLIC winmm)  # timeGetTime, for DPF's d_gettime_ms (the UI)
+endif()
 target_compile_definitions(g2m PUBLIC
   G2M_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
   G2M_VERSION_MINOR=${PROJECT_VERSION_MINOR}

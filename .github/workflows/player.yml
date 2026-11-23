@@ -24,7 +24,7 @@ jobs:
           - name: macos-universal
             os: macos-15
             shell: bash
-            configure: '"-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15'
+            configure: '"-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" "-DCMAKE_OSX_DEPLOYMENT_TARGET=10.15"'  # quoted: PowerShell splits -D...=10.15 at the dot
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     defaults:
