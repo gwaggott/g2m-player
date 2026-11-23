@@ -75,7 +75,11 @@ set(G2M_VST3_INSTALL_DIR "$ENV{HOME}/.vst3" CACHE PATH "Where `cmake --install` 
 set(G2M_CLAP_INSTALL_DIR "$ENV{HOME}/.clap" CACHE PATH "Where `cmake --install` puts g2m.clap")
 install(DIRECTORY ${G2M_LV2_BUNDLE} DESTINATION ${G2M_LV2_INSTALL_DIR} OPTIONAL)
 install(DIRECTORY ${G2M_PLUGIN_BIN}/g2m.vst3 DESTINATION ${G2M_VST3_INSTALL_DIR} OPTIONAL)
-install(FILES ${G2M_PLUGIN_BIN}/g2m.clap DESTINATION ${G2M_CLAP_INSTALL_DIR} OPTIONAL)
+if(APPLE)  # a bundle (folder) on macOS, a file elsewhere
+  install(DIRECTORY ${G2M_PLUGIN_BIN}/g2m.clap DESTINATION ${G2M_CLAP_INSTALL_DIR} OPTIONAL)
+else()
+  install(FILES ${G2M_PLUGIN_BIN}/g2m.clap DESTINATION ${G2M_CLAP_INSTALL_DIR} OPTIONAL)
+endif()
 install(DIRECTORY ${G2M_PLUGIN_BIN}/g2m-models DESTINATION ${G2M_CLAP_INSTALL_DIR} OPTIONAL)
 
 add_executable(test_presets test/test_presets.cpp)
