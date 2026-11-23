@@ -1,5 +1,7 @@
-# Builds and tests on Linux, Windows and macOS, and packages a zip per OS
-# (packaging/package.cmake) as a build artifact.
+# Builds and tests on Linux (x86_64 and ARM64, the Raspberry Pi's), Windows
+# and macOS, and packages a zip per OS (packaging/package.cmake) as a build
+# artifact. The ARM64 job also runs the core tests through the NEON and
+# float16 code that only ARM uses.
 name: player
 
 on:
@@ -15,6 +17,10 @@ jobs:
         include:
           - name: linux-x86_64
             os: ubuntu-22.04
+            shell: bash
+            configure: ''
+          - name: linux-arm64  # Raspberry Pi OS (64-bit); 22.04's older glibc runs on Debian 12 and 13
+            os: ubuntu-22.04-arm
             shell: bash
             configure: ''
           - name: windows-x64

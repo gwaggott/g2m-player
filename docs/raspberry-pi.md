@@ -13,7 +13,14 @@ playing.
 
 ## Build
 
-The Pi builds the LV2 plugin itself (about 15 minutes with `-j4`, LVGL
+CI's `linux-arm64` job (`.github/workflows/player.yml`) builds every format
+for 64-bit ARM Linux, tests it, and packages it with `v1-0-alpha.g2m`
+bundled and a `raspberry-pi/` folder (`start-g2m.sh` and this file):
+copy its `LV2/g2m.lv2` to `~/.lv2` on the Pi. It is built on Ubuntu 22.04,
+whose older C library also runs on Raspberry Pi OS (Debian 12 and 13).
+Untried on the Pi so far.
+
+Or the Pi builds the LV2 plugin itself (about 15 minutes with `-j4`, LVGL
 included). Packages, beyond the LV2, lilv and JACK development ones:
 
 ```bash

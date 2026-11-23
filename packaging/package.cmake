@@ -49,6 +49,10 @@ if(count EQUAL 0)
 endif()
 
 file(COPY "${SOURCE}/packaging/INSTALL.md" "${SOURCE}/THIRD_PARTY.md" DESTINATION "${stage}")
+if(NAME MATCHES "-linux-aarch64$")  # the Raspberry Pi: its start script and setup notes
+  file(COPY "${SOURCE}/packaging/raspberry-pi/start-g2m.sh" DESTINATION "${stage}/raspberry-pi" USE_SOURCE_PERMISSIONS)
+  configure_file("${SOURCE}/docs/raspberry-pi.md" "${stage}/raspberry-pi/README.md" COPYONLY)
+endif()
 configure_file("${SOURCE}/LICENSE" "${stage}/LICENSE.txt" COPYONLY)  # the player's own licence, GPL-3.0
 if(EXISTS "${SOURCE}/MODELS.md")
   file(COPY "${SOURCE}/MODELS.md" DESTINATION "${stage}")
