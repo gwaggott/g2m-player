@@ -98,7 +98,12 @@ jobs:
         shell: pwsh
         run: |
           $lines = foreach ($log in 'configure.log', 'build.log', 'test.log') {
-            if (Test-Path $log) { Select-String -Path $log -Pattern 'error|FAILED|Failed|undefined|Could NOT|not found' | ForEach-Object { "$log`: $($_.Line)" } }
+            if (Test-Path $log) {
+              Select-String -Path $log -Pattern 'error|FAILED|Failed|undefined|Could NOT|not found' -Context 0, 3 | ForEach-Object {
+                "$log`: $($_.Line)"
+                if ($_.Line -match 'CMake Error') { $_.Context.PostContext | ForEach-Object { "  $_" } }
+              }
+            }
           }
           $lines = @($lines | Select-Object -First 60)
           for ($i = 0; $i -lt $lines.Count; $i += 15) {
