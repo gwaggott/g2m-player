@@ -21,7 +21,11 @@ add_subdirectory(core)
 
 find_package(PkgConfig)
 
-# The plugin (LV2, VST3, CLAP, standalone) with DPF
+# The plugin (LV2, VST3, CLAP, standalone) with DPF. The Windows SDK's OpenGL headers stop at
+# version 1.1, and DPF's and the UI's OpenGL code needs Khronos's glext.h: first on every path.
+if(WIN32)
+  include_directories(BEFORE ${PROJECT_SOURCE_DIR}/external/khronos)
+endif()
 add_subdirectory(external/dpf)
 
 # LVGL for the plugin's UI, configured by plugin/ui/lv_conf.h

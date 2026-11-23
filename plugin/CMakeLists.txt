@@ -12,9 +12,6 @@ target_include_directories(g2m PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURREN
                                       ${CMAKE_CURRENT_SOURCE_DIR}/ui)  # LVGL.hpp, DISTRHO_UI_CUSTOM_INCLUDE_PATH
 target_link_libraries(g2m PUBLIC lvgl::lvgl)
 set_target_properties(dgl-opengl PROPERTIES CXX_EXTENSIONS ON)  # DPF's WebViewImpl.cpp uses typeof
-if(WIN32)  # the Windows SDK has no GL/glext.h, which DPF's OpenGL code needs: Khronos's
-  target_include_directories(dgl-opengl BEFORE PUBLIC ${PROJECT_SOURCE_DIR}/external/khronos)
-endif()
 if("lv2" IN_LIST G2M_PLUGIN_FORMATS)
   add_custom_command(TARGET g2m-lv2 POST_BUILD  # after DPF's ttl generator
     COMMAND ${CMAKE_COMMAND} -DFILE=${CMAKE_BINARY_DIR}/bin/g2m.lv2/presets.ttl -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/fix_lv2_presets.cmake

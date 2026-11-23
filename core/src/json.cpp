@@ -3,6 +3,14 @@
 #include <charconv>
 #include <climits>
 #include <cmath>
+// Apple's libc++ has no floating-point from_chars for older macOS targets (10.15)
+#if defined(__APPLE__) && !defined(G2M_JSON_STREAM_NUMBERS)
+#define G2M_JSON_STREAM_NUMBERS
+#endif
+#ifdef G2M_JSON_STREAM_NUMBERS
+#include <locale>
+#include <sstream>
+#endif
 
 namespace g2m::json {
 
@@ -213,8 +221,17 @@ struct Parser {
         }
         const char* first = text.data() + start;
         const char* last = text.data() + pos;
+#ifdef G2M_JSON_STREAM_NUMBERS
+        // a stream in the classic locale reads the same (correctly rounded)
+        std::istringstream in(std::string(first, last));
+        in.imbue(std::locale::classic());
+        in >> out.number;
+        if (in.fail() || in.peek() != std::char_traits<char>::eof() || !std::isfinite(out.number))
+            return fail("number out of range");
+#else
         auto [end, ec] = std::from_chars(first, last, out.number);
         if (ec != std::errc() || end != last) return fail("number out of range");
+#endif
         out.type = Value::Type::number;
         return true;
     }
