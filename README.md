@@ -66,7 +66,8 @@ it's configured with `-DG2M_PACKAGE_SHAREABLE=ON`, which says every
 bundled model may be shared.
 
 `.github/workflows/player.yml` is a GitHub Actions workflow that builds, tests and
-packages on Linux x86_64 (Ubuntu 22.04), Windows x64 (MSVC, Ninja) and
+packages on Linux x86_64 and ARM64 (Ubuntu 22.04; the ARM64 package, with
+a `raspberry-pi/` folder, is for the Raspberry Pi), Windows x64 (MSVC, Ninja) and
 macOS universal (arm64 and x86_64, 10.15 or later) on every push, and
 keeps each zip as a build artifact. Its packages bundle
 one model, `models/v1-0-alpha.g2m` (the only model in the repository;
