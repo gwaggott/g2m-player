@@ -34,7 +34,10 @@ on the Pi (`performance-plan.md`, "Float16 weights on the Pi 4"). The
 one above is private (made with IDMT and the MDM Strat), so that build is
 for the Pi only, not to be shared. The shareable `models/v1-0-alpha.g2m`
 is version 6 too, projected at 0.999 (since 2026-11-23; 1.04 M MACs per
-block): not yet measured on the Pi.
+block). On the Pi (2026-11-23, `g2m-bench`): 543 µs per block, 41 % of the
+budget (`mdm-pitch-offset-p999-f16` 513 µs, 38 %); MIDI identical to the
+reference on two files, outputs within 2.8e-5. Built there with both
+models bundled, `v1-0-alpha` first (the default).
 
 ## Run
 
