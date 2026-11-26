@@ -75,6 +75,13 @@ one model, `models/v1-0-alpha.g2m` (the only model in the repository;
 `build/release`, with `-DG2M_BUNDLED_MODELS=models/v1-0-alpha.g2m
 -DG2M_PACKAGE_SHAREABLE=ON`. The macOS and Windows builds aren't signed.
 
+`.github/workflows/artifact-cleanup.yml` runs daily and deletes build
+artifacts older than 30 days, keeping those built from a release's tagged
+commit (`.github/scripts/delete-old-artifacts.sh`; run it by hand with
+`DRY_RUN=1` to list what it would delete). GitHub still expires every
+artifact after 90 days, the repository's limit, so a release's packages
+last as its release assets.
+
 ## Raspberry Pi
 
 The LV2 plugin runs headless on a Raspberry Pi 4 with a synth, in
