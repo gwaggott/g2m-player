@@ -1,0 +1,82 @@
+name: Bug report
+description: The plugin or app crashes, misbehaves, or plays the wrong notes.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for trying g2m-player. It's an alpha, so reports from real setups are the most useful thing you can send.
+        For a security problem, don't open an issue: see the [security policy](https://github.com/gwaggott/g2m-player/security/policy).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Player version
+      description: The release (e.g. v1.0-alpha) or the commit you built.
+      placeholder: v1.0-alpha
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux x86_64
+        - Linux ARM64 (Raspberry Pi)
+        - Windows
+        - macOS (Apple silicon)
+        - macOS (Intel)
+    validations:
+      required: true
+  - type: dropdown
+    id: format
+    attributes:
+      label: Plugin format
+      options:
+        - LV2
+        - VST3
+        - CLAP
+        - Standalone
+    validations:
+      required: true
+  - type: input
+    id: host
+    attributes:
+      label: Host and its version
+      description: The DAW or plugin host (e.g. REAPER 7.x, Ardour, Bitwig, mod-host), and the OS version.
+    validations:
+      required: true
+  - type: input
+    id: audio
+    attributes:
+      label: Sample rate and buffer size
+      placeholder: 48 kHz, 128 samples
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      description: The bundled v1-0-alpha, or another .g2m file.
+      placeholder: v1-0-alpha (bundled)
+  - type: textarea
+    id: settings
+    attributes:
+      label: Settings
+      description: The preset, or the controls you changed (Output Mode, Bend Mode, Gate Threshold, Input Gain...), and the synth after the plugin.
+  - type: textarea
+    id: notes
+    attributes:
+      label: Wrong notes? Attach a clip
+      description: |
+        If the notes are wrong (missed, extra, wrong pitch, bends coming out as separate notes), a short DI recording (a WAV of the dry guitar, as the plugin hears it) helps most, with what you played. Zip the WAV to attach it. Only attach audio you're happy to make public.
+  - type: textarea
+    id: log
+    attributes:
+      label: Crash log or host output
+      description: Anything the host printed or reported, if it crashed or a model didn't load.
+      render: text
