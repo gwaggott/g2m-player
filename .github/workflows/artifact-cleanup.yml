@@ -1,0 +1,29 @@
+# Deletes build artifacts older than 30 days, except those built from a
+# release's tagged commit (.github/scripts/delete-old-artifacts.sh). Release
+# assets are separate files and are never touched.
+name: artifact-cleanup
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Only list what would be deleted'
+        type: boolean
+        default: true
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Delete old artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+        run: bash .github/scripts/delete-old-artifacts.sh
