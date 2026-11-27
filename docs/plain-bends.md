@@ -1,6 +1,6 @@
 # Pitch bend in plain output
 
-Plan, 2026-11-27; the decisions are at the end. Steps 1–5 done; step 6 measured, listening open.
+Plan, 2026-11-27; the decisions are at the end. Done 2026-11-27 (all six steps).
 
 Plain output puts every note on one MIDI channel, and a pitch-bend message
 bends the whole channel, so plain output has sent no bends: Bend Mode
@@ -189,7 +189,7 @@ before Auto is offered as more than an option.
    so the LV2 test runs in the plain and local builds; the core tests pass
    under ASan.
 5. **Done 2026-11-27.** Docs (with step 4: README, `CLAUDE.md`, the release plan, `docs/mpe-output.md`).
-6. **Measured 2026-11-27; listening open.** Listen and measure on real DI recordings with the bundled model: how
+6. **Done 2026-11-27.** Listen and measure on real DI recordings with the bundled model: how
    often Auto steps because another note sounds, and how Natural's lead
    sounds in chords; adjust (for example, treat a note as gone sooner)
    only on what this shows.
@@ -229,14 +229,13 @@ before Auto is offered as more than an option.
    - Retriggers are rare in every mode (a few per minute): most bends
      stay within a semitone's hysteresis.
 
-   No change made yet: the defaults stay as decided. Open, for the user:
-   whether Natural is the right default for plain output given the chord
-   wobble (Auto, or a larger dead band for plain output, would avoid it);
-   and whether Auto should count a note as gone sooner (for example a
-   note older than the newest by more than some time, since the player
-   has no level per note) so solos bend smoothly more often. Files to
-   listen to (plain MIDI in each mode, Bend Range 12) are in the
-   git-ignored `tmp/listen/plain-bends/`.
+   Listened to and tested in the plugin (the user, 2026-11-27): plain
+   output with Natural stays the default, with Bend Range 12, and no rule
+   changes. The model's bend tracking is the limit, not the output rules,
+   so a larger plain dead band or an Auto that counts ringing notes as
+   gone sooner aren't worth doing now. Files to listen to (plain MIDI in
+   each mode, Bend Range 12) are in the git-ignored
+   `tmp/listen/plain-bends/`.
 ## Decisions (the user, 2026-11-27)
 
 - **One Bend Range** for both outputs, default 12, matched to the synth by
@@ -248,4 +247,6 @@ before Auto is offered as more than an option.
   ended still bent, and a wrong pitch that lasts is worse than a bent
   release tail.
 - **Default Bend Mode:** stays Natural, which now bends in plain output
-  too (a change for anyone using plain output with a bend model).
+  too (a change for anyone using plain output with a bend model);
+  confirmed after listening, with plain output and Bend Range 12 the
+  defaults.
