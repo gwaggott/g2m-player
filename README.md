@@ -269,7 +269,7 @@ JACK server running it opens JACK ports; without one it can't be set up.
 ## Command-line tools
 
 ```bash
-build/core/g2m-transcribe --model models/M.g2m IN.wav [-o OUT.mid] [--block N] [--set KEY=VALUE] [--events OUT.json] [--mpe] [--bend-range N] [--decode REF.f32]
+build/core/g2m-transcribe --model models/M.g2m IN.wav [-o OUT.mid] [--block N] [--set KEY=VALUE] [--events OUT.json] [--mpe] [--bend-range N] [--bend-mode MODE] [--decode REF.f32]
 build/core/g2m-bench --model models/M.g2m [--wav IN.wav] [--stages]
 ```
 
@@ -285,7 +285,11 @@ build/core/g2m-bench --model models/M.g2m [--wav IN.wav] [--stages]
   note-on's string probabilities, onset type and bend, and the bend
   events. `--mpe` writes MPE as the plugin sends it and prints how the
   strings were chosen; `--bend-range N` scales the bends to ±N semitones
-  and sends that range (default: the model's, 12). `--decode REF.f32`
+  and sends that range (default: the model's, 12). `--bend-mode
+  natural|retrigger|off|auto` puts the notes through the plugin's Bend
+  Mode first, so plain files get the channel pitch bend (after RPN 0) and
+  retriggers, and prints how many of each it made; without it the file is
+  the reference's, with no Bend Mode. `--decode REF.f32`
   decodes `reference.py --outputs`' outputs instead of running the model,
   for exact comparisons.
 - **`g2m-bench`** measures single-thread time per 64-sample block against

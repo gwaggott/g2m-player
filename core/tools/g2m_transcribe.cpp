@@ -1,5 +1,5 @@
 // g2m-transcribe --model M.g2m IN.wav [-o OUT.mid] [--block N] [--outputs OUT.f32] [--events OUT.json]
-//                [--set KEY=VALUE ...] [--mpe [--bend-range N]]
+//                [--set KEY=VALUE ...] [--mpe] [--bend-range N] [--bend-mode MODE]
 //
 // Runs a WAV through the model and decoder, fed in host-sized blocks of N
 // samples (default 512), and writes the notes as a MIDI file (default: IN
@@ -15,6 +15,12 @@
 // string's channel with its pitch bends, and prints how often each step of
 // the string allocator chose the string. --bend-range N sets the decoder's
 // bend_range (the bends' scale and the RPN 0 sent; default the model's).
+// --bend-mode natural|retrigger|off|auto puts the events through the
+// plugin's Bend Mode (g2m::BendModeFilter) first, as the plugin does after
+// the sustain pedal, and prints how many retriggers and channel bends it
+// made. Plain output then has the channel pitch bend (docs/plain-bends.md),
+// on channel 1 after RPN 0 at time 0 (natural and auto); MPE output, the
+// retriggers. Without it the output is the reference's, with no Bend Mode.
 // --decode REF.f32 skips the network: the decoder reads reference.py
 // --outputs' outputs instead (the WAV gives only the length), so its events
 // can be compared exactly ("Checking a port" in the format spec).
@@ -23,6 +29,7 @@
 // first, as the plugin does; the output's times are then the converted
 // audio's.
 
+#include <g2m/bend_mode.h>
 #include <g2m/denormals.h>
 #include <g2m/mpe.h>
 #include <g2m/resampler.h>
@@ -94,6 +101,51 @@ std::vector<g2m::tools::MidiMessage> to_mpe(const std::vector<Event>& events, in
         mpe.note(e.pitch, e.velocity, out, e.has_strings ? e.strings : nullptr, e.onset_type, e.has_bend ? e.bend : -1);
     }
     return out.messages;
+}
+
+// --bend-mode: the events through the Bend Mode, as plain MIDI on channel 1
+// or as MPE, counting what it does
+struct BendWrite : g2m::NoteSink, g2m::MidiWriter {
+    std::vector<g2m::tools::MidiMessage> messages;
+    std::uint64_t sample = 0;
+    bool mpe = false;
+    g2m::MpeOutput out;
+    long retriggers = 0, channel_bends = 0;
+    void note(const g2m::NoteEvent& e) override {
+        sample = e.sample;
+        if (mpe) out.note(e.pitch, e.velocity, *this, e.has_strings ? e.strings : nullptr, e.onset_type,
+                          e.has_bend ? e.bend : -1);
+        else midi(e.velocity ? 0x90 : 0x80, static_cast<std::uint8_t>(e.pitch), static_cast<std::uint8_t>(e.velocity));
+    }
+    void bend(const g2m::BendEvent& e) override {
+        sample = e.sample;
+        if (mpe) out.bend(e.pitch, e.bend, *this);
+    }
+    void retrigger(std::uint64_t at, int from, int to, int velocity) override {
+        sample = at;
+        ++retriggers;
+        if (mpe) {
+            out.retrigger(from, to, velocity, *this);
+        } else {
+            midi(0x80, static_cast<std::uint8_t>(from), 0);
+            midi(0x90, static_cast<std::uint8_t>(to), static_cast<std::uint8_t>(velocity));
+        }
+    }
+    void channel_bend(std::uint64_t at, int value) override {
+        sample = at;
+        ++channel_bends;
+        midi(0xE0, static_cast<std::uint8_t>(value & 0x7F), static_cast<std::uint8_t>(value >> 7));
+    }
+    void midi(std::uint8_t s, std::uint8_t d1, std::uint8_t d2) override { messages.push_back({sample, s, d1, d2}); }
+};
+
+bool parse_bend_mode(const std::string& name, g2m::BendMode& mode) {
+    if (name == "natural") mode = g2m::BendMode::natural;
+    else if (name == "retrigger") mode = g2m::BendMode::retrigger;
+    else if (name == "off") mode = g2m::BendMode::off;
+    else if (name == "auto") mode = g2m::BendMode::autobend;
+    else return false;
+    return true;
 }
 
 // --decode: the decoder on reference.py's outputs, [blocks][P][3 + heads in
@@ -220,7 +272,7 @@ std::string events_json(const std::vector<Event>& events, int sample_rate, bool 
 }
 
 int usage() {
-    std::fprintf(stderr, "usage: g2m-transcribe --model M.g2m IN.wav [-o OUT.mid] [--block N] [--outputs OUT.f32] [--events OUT.json] [--set KEY=VALUE ...] [--mpe [--bend-range N]] [--decode REF.f32]\n");
+    std::fprintf(stderr, "usage: g2m-transcribe --model M.g2m IN.wav [-o OUT.mid] [--block N] [--outputs OUT.f32] [--events OUT.json] [--set KEY=VALUE ...] [--mpe] [--bend-range N] [--bend-mode natural|retrigger|off|auto] [--decode REF.f32]\n");
     return 2;
 }
 
@@ -232,6 +284,8 @@ int main(int argc, char** argv) {
     long block = 512;
     bool mpe = false;
     long bend_range = 0;  // 0: the model's
+    bool bend_modes = false;
+    g2m::BendMode bend_mode = g2m::BendMode::natural;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         bool has_value = i + 1 < argc;
@@ -244,6 +298,7 @@ int main(int argc, char** argv) {
         else if (arg == "--decode" && has_value) decode_path = argv[++i];
         else if (arg == "--mpe") mpe = true;
         else if (arg == "--bend-range" && has_value) bend_range = std::strtol(argv[++i], nullptr, 10);
+        else if (arg == "--bend-mode" && has_value && parse_bend_mode(argv[i + 1], bend_mode)) bend_modes = (++i, true);
         else if (!arg.empty() && arg[0] != '-' && in_path.empty()) in_path = arg;
         else return usage();
     }
@@ -327,12 +382,30 @@ int main(int argc, char** argv) {
     double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
 
     long steps[5] = {};
-    std::vector<g2m::NoteEvent> notes_only;  // the plain output carries no bends
-    for (const Event& e : sink.events)
-        if (!e.is_bend) notes_only.push_back(e);
-    std::vector<std::uint8_t> midi =
-        mpe ? g2m::tools::midi_file(to_mpe(sink.events, decoder.bend_range, steps), audio.sample_rate)
-            : g2m::tools::midi_file(notes_only, audio.sample_rate);
+    BendWrite bent;
+    std::vector<std::uint8_t> midi;
+    if (bend_modes) {
+        g2m::BendModeFilter filter;
+        filter.set_mode(bend_mode);
+        filter.set_plain(!mpe);
+        filter.set_bend_range(decoder.bend_range);
+        bent.mpe = mpe;
+        if (mpe) g2m::MpeOutput::configure(decoder.bend_range, bent);
+        else if (bend_mode == g2m::BendMode::natural || bend_mode == g2m::BendMode::autobend)
+            g2m::MpeOutput::send_channel_bend_range(0, decoder.bend_range, bent);
+        for (const Event& e : sink.events) {
+            if (e.is_bend) filter.bend({e.sample, e.pitch, e.bend, e.semitones}, bent);
+            else filter.note(e, bent);
+        }
+        midi = g2m::tools::midi_file(bent.messages, audio.sample_rate);
+    } else if (mpe) {
+        midi = g2m::tools::midi_file(to_mpe(sink.events, decoder.bend_range, steps), audio.sample_rate);
+    } else {
+        std::vector<g2m::NoteEvent> notes_only;  // the reference's plain output carries no bends
+        for (const Event& e : sink.events)
+            if (!e.is_bend) notes_only.push_back(e);
+        midi = g2m::tools::midi_file(notes_only, audio.sample_rate);
+    }
     std::ofstream out(out_path, std::ios::binary);
     out.write(reinterpret_cast<const char*>(midi.data()), static_cast<std::streamsize>(midi.size()));
     if (!out) {
@@ -363,7 +436,9 @@ int main(int argc, char** argv) {
     std::printf("%s: %.1f s, %ld notes -> %s; %.0f us per %d-sample block (%.0f us of audio)\n", in_path.c_str(),
                 static_cast<double>(audio.samples.size()) / audio.sample_rate, notes, out_path.c_str(),
                 seconds / (blocks ? blocks : 1) * 1e6, hop, 1e6 * hop / audio.sample_rate);
-    if (mpe)
+    if (bend_modes)
+        std::printf("bend mode: %ld retriggers, %ld channel bends\n", bent.retriggers, bent.channel_bends);
+    else if (mpe)
         std::printf("MPE strings chosen by: continuing a note (legato) %ld, hand span %ld, range %ld, any free string %ld, "
                     "stealing %ld\n", steps[0], steps[1], steps[2], steps[3], steps[4]);
     return 0;

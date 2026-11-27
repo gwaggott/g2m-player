@@ -1,6 +1,6 @@
 # Pitch bend in plain output
 
-Plan, 2026-11-27; the decisions are at the end. Steps 1 and 2 done.
+Plan, 2026-11-27; the decisions are at the end. Steps 1–3 done.
 
 Plain output puts every note on one MIDI channel, and a pitch-bend message
 bends the whole channel, so plain output has sent no bends: Bend Mode
@@ -129,7 +129,7 @@ before Auto is offered as more than an option.
   notes-off; RPN 0 as above. Factory preset "Plain, smooth bends" (Auto).
 - `core/tools/g2m-transcribe`: `--bend-mode natural|retrigger|off|auto`
   (with the existing `--bend-range N`), so plain files with channel bends can be
-  written and listened to (it applies no bend mode now).
+  written and listened to (without it, no Bend Mode, as before).
 - Docs: README (Bend Mode, Bend Range for both outputs and matching the
   synth, the factory preset, "Plain mode sends no pitch bend" goes), `CLAUDE.md`, `docs/release-plan.md`'s
   bend modes pointing here.
@@ -158,7 +158,18 @@ before Auto is offered as more than an option.
    waits as in Retrigger, tested there. Four new tests; each of the
    sixteen new conditions, broken on purpose, fails one (the `lead_ >= 0`
    guard only under AddressSanitizer).
-3. `g2m-transcribe` flags.
+3. **Done 2026-11-27.** `g2m-transcribe` flags. `--bend-mode
+   natural|retrigger|off|auto` runs the events through `BendModeFilter`
+   (`--bend-range` sets its range with the decoder's) and writes plain
+   MIDI on channel 1, with RPN 0 at time 0 in Natural and Auto
+   (`MpeOutput::send_channel_bend_range`, for the plugin too), or MPE; it
+   prints the retriggers and channel bends. Without it the output is as
+   before. CTest: `--bend-mode natural --mpe` writes the reference's MPE
+   file and `--bend-mode off` its plain file, byte for byte. A first look
+   with the bundled model on a GuitarSet jazz solo: Natural 3,745 channel
+   bends; Retrigger 24 retriggers; Auto 907 channel bends and 26
+   retriggers, so other notes were sounding for much of the bending
+   (step 6 looks closer).
 4. Plugin: Bend Range for both outputs, RPN 0, the channel-change bend reset, the UI
    stepper, the factory preset; the LV2 test compares the plugin's plain
    MIDI with the core's in every bend mode, and counts no allocations.

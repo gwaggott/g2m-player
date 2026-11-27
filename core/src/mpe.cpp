@@ -41,6 +41,10 @@ void MpeOutput::send_bend_range(int bend_range, MidiWriter& out) {
     for (int s = 1; s <= kStrings; ++s) set_rpn(out, channel(s), 0, range, true);
 }
 
+void MpeOutput::send_channel_bend_range(int channel, int bend_range, MidiWriter& out) {
+    set_rpn(out, channel, 0, std::clamp(bend_range, 1, kMaxBendRange), true);
+}
+
 void MpeOutput::release_zone(MidiWriter& out) {
     send_mcm(out, 0);
 }

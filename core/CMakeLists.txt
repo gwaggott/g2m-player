@@ -69,3 +69,13 @@ add_test(NAME transcribe_cli_mpe
   COMMAND ${CMAKE_COMMAND} -DOUT=${CMAKE_CURRENT_BINARY_DIR}/bend.mpe.mid -DEXPECTED=${CMAKE_CURRENT_SOURCE_DIR}/test/data/bend.mpe.mid
     "-DCOMMAND=$<TARGET_FILE:g2m-transcribe>|--model|${CMAKE_CURRENT_SOURCE_DIR}/test/data/bend.g2m|--decode|${CMAKE_CURRENT_SOURCE_DIR}/test/data/bend.outputs.f32|--mpe|${CMAKE_CURRENT_SOURCE_DIR}/test/data/small.wav|-o|${CMAKE_CURRENT_BINARY_DIR}/bend.mpe.mid"
     -P ${CMAKE_CURRENT_SOURCE_DIR}/test/run_and_compare.cmake)
+
+# --bend-mode natural in MPE output and off in plain output change nothing: the same files
+add_test(NAME transcribe_cli_bend_mode_mpe
+  COMMAND ${CMAKE_COMMAND} -DOUT=${CMAKE_CURRENT_BINARY_DIR}/bend.natural.mpe.mid -DEXPECTED=${CMAKE_CURRENT_SOURCE_DIR}/test/data/bend.mpe.mid
+    "-DCOMMAND=$<TARGET_FILE:g2m-transcribe>|--model|${CMAKE_CURRENT_SOURCE_DIR}/test/data/bend.g2m|--decode|${CMAKE_CURRENT_SOURCE_DIR}/test/data/bend.outputs.f32|--mpe|--bend-mode|natural|${CMAKE_CURRENT_SOURCE_DIR}/test/data/small.wav|-o|${CMAKE_CURRENT_BINARY_DIR}/bend.natural.mpe.mid"
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/test/run_and_compare.cmake)
+add_test(NAME transcribe_cli_bend_mode_plain
+  COMMAND ${CMAKE_COMMAND} -DOUT=${CMAKE_CURRENT_BINARY_DIR}/small.off.mid -DEXPECTED=${CMAKE_CURRENT_SOURCE_DIR}/test/data/small.mid
+    "-DCOMMAND=$<TARGET_FILE:g2m-transcribe>|--model|${CMAKE_CURRENT_SOURCE_DIR}/test/data/small.g2m|--block|100|--bend-mode|off|${CMAKE_CURRENT_SOURCE_DIR}/test/data/small.wav|-o|${CMAKE_CURRENT_BINARY_DIR}/small.off.mid"
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/test/run_and_compare.cmake)
