@@ -68,6 +68,8 @@ public:
     // The bend range (semitones) the decoder scales bends to, for Auto's
     // channel bends: 1-96.
     void set_bend_range(int range) { range_ = range; }
+    // Plain output: the channel bend last sent (8192 for none)
+    int channel_bend() const { return channel_; }
 
     void note(const NoteEvent& event, NoteSink& out);
     void bend(const BendEvent& event, NoteSink& out);

@@ -18,6 +18,7 @@ inline const std::vector<Preset>& factory_presets() {
         {"MPE retrigger lead", "", {{"output_mode", 1}, {"bend_mode", 1}}},
         {"Pad (freeze)", "", {{"output_mode", 1}, {"sustain_mode", 3}}},
         {"Noisy pickups (gated)", "", {{"gate_threshold", -60}, {"gate_release", 80}}},
+        {"Smooth bends (plain, Auto)", "", {{"bend_mode", 3}}},
     };
     return presets;
 }

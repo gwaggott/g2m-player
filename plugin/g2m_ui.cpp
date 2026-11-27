@@ -463,12 +463,12 @@ private:
         lv_obj_set_x(gate_mark_, lv_pct(meter_pct(gate)));
     }
 
-    // The MIDI Channel is for plain output, the bend range for MPE
+    // The MIDI Channel is for plain output only (the Bend Range is for both)
     void show_used() {
         bool mpe = values_[kOutputMode] >= 0.5f;
         for (auto& c : controls_) {
-            bool unused = (c->index == kMidiChannel && mpe) || (c->index == kBendRange && !mpe);
-            if (c->index != kMidiChannel && c->index != kBendRange) continue;
+            if (c->index != kMidiChannel) continue;
+            bool unused = mpe;
             if (unused) lv_obj_add_state(c->row, LV_STATE_DISABLED);
             else lv_obj_remove_state(c->row, LV_STATE_DISABLED);
             lv_obj_set_style_opa(c->row, unused ? LV_OPA_50 : LV_OPA_COVER, 0);

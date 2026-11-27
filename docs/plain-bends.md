@@ -1,6 +1,6 @@
 # Pitch bend in plain output
 
-Plan, 2026-11-27; the decisions are at the end. Steps 1–3 done.
+Plan, 2026-11-27; the decisions are at the end. Steps 1–4 done.
 
 Plain output puts every note on one MIDI channel, and a pitch-bend message
 bends the whole channel, so plain output has sent no bends: Bend Mode
@@ -170,9 +170,24 @@ before Auto is offered as more than an option.
    bends; Retrigger 24 retriggers; Auto 907 channel bends and 26
    retriggers, so other notes were sounding for much of the bending
    (step 6 looks closer).
-4. Plugin: Bend Range for both outputs, RPN 0, the channel-change bend reset, the UI
+4. **Done 2026-11-27.** Plugin: Bend Range for both outputs, RPN 0, the channel-change bend reset, the UI
    stepper, the factory preset; the LV2 test compares the plugin's plain
    MIDI with the core's in every bend mode, and counts no allocations.
+   Bend Range renamed (symbol and index unchanged) and no longer greyed in
+   plain output; Bend Mode 0–3 with Auto; the filter gets plain output and
+   the range each run. RPN 0 on the plain channel in Natural and Auto at
+   the start (activation), and when the range, channel or output mode
+   changes or one of those modes is chosen; ending the notes (a channel,
+   mode or model change, re-activation) takes a bent channel back to 8192
+   on the channel the notes were on. Factory preset "Smooth bends (plain,
+   Auto)", appended so the programs before it keep their numbers. LV2
+   tests: every Bend Mode in both outputs equals the core's filter, plain
+   Natural's default output, Auto at Bend Range 48, the RPN 0 rules and the
+   unbend; no allocations in `run()`; each new condition in the plugin,
+   broken on purpose, fails one. The ASan build can't build the LV2 bundle
+   (DPF's ttl generator loads the plugin without the ASan runtime first),
+   so the LV2 test runs in the plain and local builds; the core tests pass
+   under ASan.
 5. Docs.
 6. Listen and measure on real DI recordings with the bundled model: how
    often Auto steps because another note sounds, and how Natural's lead

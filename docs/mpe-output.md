@@ -27,7 +27,7 @@ The plugin has an **Output Mode** port (index 16, symbol `output_mode`):
   *s* + 1, so channels 2–7, highest string first, as gp2midi's `--mpe`
   writes. The MIDI Channel port is unused in this mode.
 
-and an **MPE Bend Range** port (index 17, `bend_range`, 1–96 semitones,
+and an **MPE Bend Range** port (renamed Bend Range 2026-11-27, for plain output too: `docs/plain-bends.md`; index 17, `bend_range`, 1–96 semitones,
 default 12): the pitch-bend range sent as RPN 0, and the range the
 model's bends are scaled to (format version 4, "Pitch bend"), whatever
 the file's `bend_range`. A synth that ignores RPN 0 assumes MPE's default
