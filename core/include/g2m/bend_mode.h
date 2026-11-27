@@ -13,12 +13,21 @@
 //   channel (the sink's retrigger); works in plain MIDI too. The pitch is
 //   clamped to 0-127; a step onto a pitch another note is sounding waits.
 // - off: no bends; notes keep their detected pitch.
+// - autobend (Auto): in plain output, a note's bend goes on the channel only
+//   while it is the only note sounding; with others sounding, bends step as
+//   in retrigger. Each note is sent at its pitch + step, and the channel
+//   carries the rest (its semitones - the step) while it is alone; a bend
+//   past the bend range steps to the nearest semitone and the channel
+//   carries the rest again. When a second note starts, the channel goes to
+//   8192 and the bent note steps to its nearest semitone; when one note is
+//   left, the channel takes its rest at once. In MPE output, natural.
 //
 // In retrigger and off, a note-on that carries a bend carries none (8192),
 // so an MPE channel starts clean. In plain output every note-on makes its
 // note the lead and first sets the channel bend to the note's own (8192 in
-// retrigger and off) if it isn't already. Each note keeps the mode it started in. Without a
-// pitch-offset head there are no bends, so every mode passes notes as they are.
+// retrigger and off; Auto's rest when it is alone) if it isn't already.
+// Each note keeps the mode it started in. Without a pitch-offset head there
+// are no bends, so every mode passes notes as they are.
 // No allocation, locks or exceptions.
 #pragma once
 
@@ -28,7 +37,7 @@
 
 namespace g2m {
 
-enum class BendMode { natural, retrigger, off };
+enum class BendMode { natural, retrigger, off, autobend };
 
 constexpr float kBendStepHysteresis = 0.2f;  // semitones past the half-way point
 
@@ -56,6 +65,9 @@ public:
     // Plain output (one channel bend) or not (MPE: per-note bends). Call
     // reset() when it changes.
     void set_plain(bool plain) { plain_ = plain; }
+    // The bend range (semitones) the decoder scales bends to, for Auto's
+    // channel bends: 1-96.
+    void set_bend_range(int range) { range_ = range; }
 
     void note(const NoteEvent& event, NoteSink& out);
     void bend(const BendEvent& event, NoteSink& out);
@@ -75,6 +87,8 @@ private:
         int out = 0;  // the pitch sent
         int velocity = 0;
         int bend = 8192;  // the last bend, 14-bit (plain natural: for the hand-over)
+        float semitones = 0;  // the last bend, in semitones (Auto)
+        int pitch = 0;  // detected
         std::uint32_t order = 0;  // when it started, for the lead
     };
 
@@ -82,8 +96,14 @@ private:
     void end(int pitch, std::uint64_t sample, NoteSink& out, bool hand_over);
     // Plain output: the channel bend to `value`, if it isn't already
     void set_channel(std::uint64_t sample, int value, NoteSink& out);
-    // The bend a note wants on the channel: its own if natural, else none
-    static int wanted(const Note& n) { return n.mode == BendMode::natural ? n.bend : 8192; }
+    // The bend a note wants on the channel: its own if natural, the rest if
+    // Auto and alone, else none
+    int wanted(const Note& n) const;
+    // Auto: the 14-bit bend of the part of the note's bend its step leaves
+    int rest(const Note& n) const;
+    // Steps the note to `step` (a retrigger), unless the pitch is another
+    // note's: then it waits
+    void move(Note& n, int step, std::uint64_t sample, NoteSink& out);
 
     BendMode mode_ = BendMode::natural;
     Note notes_[128];  // by detected pitch
@@ -91,6 +111,8 @@ private:
     bool plain_ = false;
     int channel_ = 8192;  // plain: the channel bend sent
     int lead_ = -1;  // plain: the lead's detected pitch, -1 for none
+    int sounding_ = 0;  // notes on
+    int range_ = 12;
     std::uint32_t order_ = 0;  // note-ons so far
 };
 

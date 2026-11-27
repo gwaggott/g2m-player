@@ -1,6 +1,6 @@
 # Pitch bend in plain output
 
-Plan, 2026-11-27; the decisions are at the end. Step 1 done.
+Plan, 2026-11-27; the decisions are at the end. Steps 1 and 2 done.
 
 Plain output puts every note on one MIDI channel, and a pitch-bend message
 bends the whole channel, so plain output has sent no bends: Bend Mode
@@ -91,14 +91,16 @@ while the note is the only one sounding.
   (a retrigger to `pitch + lround(s)`) and the channel carries the rest
   again. Its step doesn't otherwise change, so a bend is smooth.
 - **A second note starts** while the channel is bent: before its note-on,
-  the bent note steps to `lround(s)` if that isn't its step (a retrigger:
-  the note is struck again at the nearest semitone), and the channel goes
-  to 8192 (no bend). Then the new note-on.
+  the channel goes to 8192 (no bend), then the bent note steps to
+  `lround(s)` if that isn't its step (a retrigger: the note is struck
+  again at the nearest semitone). Then the new note-on (stepped as in
+  Retrigger if it is pre-bent).
 - **Two or more sounding:** the channel stays at 8192, and each note's
   bends step it as in Retrigger (`bend_step`, ±0.2 semitone hysteresis;
   a step onto a pitch another note is sounding waits).
-- **Back to one:** the remaining note's next bend event sets the channel
-  bend to `s − step` again.
+- **Back to one:** when a note-off leaves one note, the channel takes its
+  `s − step` at once, as Natural's hand-over does (a note-on with no
+  note-off between doesn't count: the new note follows at once).
 
 A note's mode is still the one it started in (Auto notes and Natural
 notes can sound together after a change; the channel bend then follows
@@ -145,8 +147,17 @@ before Auto is offered as more than an option.
    or onto a retriggered note, ends the old note without a hand-over, so
    the channel moves once, for the new note. Five new tests; each of the
    eleven conditions, broken on purpose, fails one.
-2. Core: Auto; tests, including the 1 → 2 → 1 transitions, the range
+2. **Done 2026-11-27.** Core: Auto; tests, including the 1 → 2 → 1 transitions, the range
    step, a step onto a sounding pitch, and Sustain holding a note.
+   `BendMode::autobend` (3), `BendModeFilter::set_bend_range` (the
+   decoder's range, for the rest's 14-bit value; 12 until the plugin sets
+   it in step 4) and a count of the notes sounding. A note held by the
+   sustain pedal is simply a note sounding to the filter, so it needs no
+   test of its own here; the LV2 test covers the pedal in step 4. The
+   retrigger code is shared (`move`), so a step onto a sounding pitch
+   waits as in Retrigger, tested there. Four new tests; each of the
+   sixteen new conditions, broken on purpose, fails one (the `lead_ >= 0`
+   guard only under AddressSanitizer).
 3. `g2m-transcribe` flags.
 4. Plugin: Bend Range for both outputs, RPN 0, the channel-change bend reset, the UI
    stepper, the factory preset; the LV2 test compares the plugin's plain

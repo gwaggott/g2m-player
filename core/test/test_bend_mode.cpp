@@ -1,5 +1,7 @@
 #include <g2m/bend_mode.h>
 
+#include <algorithm>
+#include <cmath>
 #include <vector>
 
 #include "check.h"
@@ -309,4 +311,99 @@ TEST(plain_no_bend_head_and_reset) {
                              {30, 'n', 60, 100, natural(0)}, {40, 'c', -1, natural(1.0f)},
                              {40, 'n', 64, 100, natural(1.0f)}, {50, 'c', -1, natural(1.0f)},
                              {50, 'n', 64, 100, natural(1.0f)}}));
+}
+
+// Auto's channel bend for the rest of a bend, `r` semitones, at a bend range
+static int rest(float r, int range = 12) {
+    return std::clamp(8192 + static_cast<int>(std::lrintf(r * (8192.0f / static_cast<float>(range)))), 0, 16383);
+}
+
+// Auto, alone: the bend on the channel, smooth; past the range it steps
+TEST(auto_alone_bends_the_channel) {
+    Rig r(g2m::BendMode::autobend, true);
+    r.on(60, 10);
+    r.bend(60, 20, 0.5f);
+    r.bend(60, 30, 1.5f);  // no step within the range
+    r.off(60, 40);
+    CHECK((r.out.take() == V{{10, 'n', 60, 100, 8192}, {20, 'c', -1, rest(0.5f)}, {30, 'c', -1, rest(1.5f)},
+                             {40, 'n', 60, 0}}));
+    Rig q(g2m::BendMode::autobend, true);
+    q.filter.set_bend_range(2);
+    q.on(60, 10);
+    q.bend(60, 20, 1.5f);
+    q.bend(60, 30, 2.6f);  // past 2: to the nearest semitone, the rest on the channel
+    q.bend(60, 40, 1.0f);  // 2 below the note sent: still within the range
+    q.bend(60, 45, 4.5f);  // 1.5 above it: within the range too
+    q.off(60, 50);
+    q.on(50, 60, 2.5f);  // a pre-bend past the range starts stepped
+    CHECK((q.out.take() == V{{10, 'n', 60, 100, 8192}, {20, 'c', -1, rest(1.5f, 2)}, {30, 'r', 60, 63, 100},
+                             {30, 'c', -1, rest(-0.4f, 2)}, {40, 'c', -1, rest(-2.0f, 2)}, {45, 'c', -1, rest(1.5f, 2)},
+                             {50, 'n', 63, 0},
+                             {60, 'c', -1, rest(-0.5f, 2)}, {60, 'n', 53, 100, 8192}}));
+}
+
+// A second note: the channel goes to no bend and the bent note steps to its
+// nearest semitone; then bends step; one note left takes the channel again
+TEST(auto_one_two_one) {
+    Rig r(g2m::BendMode::autobend, true);
+    r.on(60, 10);
+    r.bend(60, 20, 1.3f);
+    r.on(64, 30);
+    r.bend(60, 40, 1.8f);  // two sounding: steps
+    r.bend(64, 41, 0.5f);  // within the step
+    r.off(64, 50);  // 60 alone: its rest at once
+    r.bend(60, 60, 1.0f);
+    r.off(60, 70);
+    CHECK((r.out.take() == V{{10, 'n', 60, 100, 8192}, {20, 'c', -1, rest(1.3f)}, {30, 'c', -1, 8192},
+                             {30, 'r', 60, 61, 100}, {30, 'n', 64, 100, 8192}, {40, 'r', 61, 62, 100},
+                             {50, 'n', 64, 0}, {50, 'c', -1, rest(-0.2f)}, {60, 'c', -1, rest(-1.0f)},
+                             {70, 'n', 62, 0}}));
+    // the older note ends, leaving the lead alone; a pre-bent second note steps
+    Rig q(g2m::BendMode::autobend, true);
+    q.on(60, 10);
+    q.on(64, 20);
+    q.bend(64, 30, 0.4f);
+    q.off(60, 40);
+    q.on(67, 50, 1.0f);
+    q.on(67, 60, 0.2f);  // again, with no note-off: 64 isn't alone in between
+    CHECK((q.out.take() == V{{10, 'n', 60, 100, 8192}, {20, 'n', 64, 100, 8192}, {40, 'n', 60, 0},
+                             {40, 'c', -1, rest(0.4f)}, {50, 'c', -1, 8192}, {50, 'n', 68, 100, 8192},
+                             {60, 'n', 68, 0}, {60, 'n', 67, 100, 8192}}));
+}
+
+// Auto after a Natural note, and Auto in MPE output (natural)
+TEST(auto_mixed_and_mpe) {
+    Rig r(g2m::BendMode::natural, true);
+    r.on(50, 10, 1.0f);
+    r.filter.set_mode(g2m::BendMode::autobend);
+    r.on(60, 20);  // not alone: no bend
+    r.bend(60, 30, 0.5f);
+    r.off(50, 40);  // 60 alone now
+    CHECK((r.out.take() == V{{10, 'c', -1, natural(1.0f)}, {10, 'n', 50, 100, natural(1.0f)}, {20, 'c', -1, 8192},
+                             {20, 'n', 60, 100, 8192}, {40, 'n', 50, 0}, {40, 'c', -1, rest(0.5f)}}));
+    Rig m(g2m::BendMode::autobend, false);
+    m.on(60, 10, 0.3f);
+    m.bend(60, 20, 0.9f);
+    CHECK((m.out.take() == V{{10, 'n', 60, 100, natural(0.3f)}, {20, 'b', 60, natural(0.9f)}}));
+    Rig n(g2m::BendMode::autobend, true);
+    n.on(60, 10, 1.0f, false);  // no bend head: no bend
+    n.off(60, 20);
+    CHECK((n.out.take() == V{{10, 'n', 60, 100, -1}, {20, 'n', 60, 0}}));
+}
+
+// With two or more sounding, a third note leaves the steps as they are;
+// reset forgets how many notes sound
+TEST(auto_three_and_reset) {
+    Rig r(g2m::BendMode::autobend, true);
+    r.on(60, 10);
+    r.on(64, 20);
+    r.bend(64, 30, 1.0f);  // to 65
+    r.bend(64, 40, 1.6f);  // stays: the hysteresis
+    r.on(70, 50);  // not a note alone: 64 keeps its step
+    CHECK((r.out.take() == V{{10, 'n', 60, 100, 8192}, {20, 'n', 64, 100, 8192}, {30, 'r', 64, 65, 100},
+                             {50, 'n', 70, 100, 8192}}));
+    r.filter.reset();
+    r.on(60, 60);
+    r.bend(60, 70, 0.5f);  // alone
+    CHECK((r.out.take() == V{{60, 'n', 60, 100, 8192}, {70, 'c', -1, rest(0.5f)}}));
 }
