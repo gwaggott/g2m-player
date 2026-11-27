@@ -33,6 +33,9 @@ public:
     // the MCM resets the range to 48. Each RPN is closed with the null RPN.
     static void configure(int bend_range, MidiWriter& out);
     static void send_bend_range(int bend_range, MidiWriter& out);
+    // The pitch-bend range (RPN 0, 1-96 semitones) on one channel, 0-15:
+    // plain output's (docs/plain-bends.md).
+    static void send_channel_bend_range(int channel, int bend_range, MidiWriter& out);
     // The MCM with no member channels: the zone is turned off.
     static void release_zone(MidiWriter& out);
 

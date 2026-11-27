@@ -459,6 +459,18 @@ std::vector<Midi> mpe_configuration(std::uint64_t time, int bend_range = 12) {
     return out.events;
 }
 
+// Plain output's RPN 0 = the Bend Range on one channel (0-15), in Natural and Auto
+std::vector<Midi> plain_rpn(std::uint64_t time, int channel, int bend_range = 12) {
+    struct Collect : g2m::MidiWriter {
+        std::vector<Midi> events;
+        std::uint64_t time;
+        void midi(std::uint8_t s, std::uint8_t d1, std::uint8_t d2) override { events.push_back({time, s, d1, d2}); }
+    } out;
+    out.time = time;
+    g2m::MpeOutput::send_channel_bend_range(channel, bend_range, out);
+    return out.events;
+}
+
 bool is_note(const Midi& m) {
     return (m.status & 0xE0) == 0x80;
 }
@@ -1075,10 +1087,13 @@ TEST(other_sample_rates_resampled) {
         host.midi.clear();
         host.mark_audio_start();
         host.run_audio(audio, rng);
-        std::vector<Midi> after;  // without the held notes' note-offs, first
-        for (const Midi& m : host.midi)
-            if (!(m.time == 0 && (m.status & 0xF0) == 0x80)) after.push_back(m);
+        std::vector<Midi> after, rpn;  // without the held notes' note-offs and the RPN 0 sent again, first
+        for (const Midi& m : host.midi) {
+            if (m.time == 0 && (m.status & 0xF0) == 0xB0) rpn.push_back(m);
+            else if (!(m.time == 0 && (m.status & 0xF0) == 0x80)) after.push_back(m);
+        }
         CHECK_MSG(after == want, "%d Hz, re-activated", rate);
+        CHECK(rpn == plain_rpn(0, 0));
     }
 }
 
@@ -1262,7 +1277,10 @@ TEST(mode_change_ends_held_notes) {
     host.output_mode = 0;
     host.run(audio.data() + at, 1);
     std::vector<Midi> offs(host.midi.begin() + before, host.midi.end());
-    CHECK(offs.size() == on_mpe.size() + 5);  // the note-offs, then the MCM with no members
+    std::vector<Midi> rpn = plain_rpn(at, 2);
+    CHECK(offs.size() == on_mpe.size() + 5 + rpn.size());  // the note-offs, the MCM with no members, RPN 0
+    CHECK(offs.size() > rpn.size() && std::vector<Midi>(offs.end() - static_cast<long>(rpn.size()), offs.end()) == rpn);
+    offs.resize(offs.size() - rpn.size());
     for (std::size_t i = 0; i < on_mpe.size() && i < offs.size(); ++i)
         CHECK((offs[i].status & 0xF0) == 0x80 && (offs[i].status & 0x0F) >= 1 && (offs[i].status & 0x0F) <= 6 &&
               offs[i].pitch == on_mpe[i] && offs[i].time == at);
@@ -1362,8 +1380,11 @@ std::vector<float> raw_audio(const std::string& name) {
     return audio;
 }
 
-// MPE mode sends each note's bends on its channel, scaled to the MPE Bend
-// Range port (not the file's range); plain mode sends no bends at all.
+std::vector<Midi> expected_bend_mode(const std::vector<float>& audio, g2m::BendMode mode, bool mpe, int bend_range);
+
+// MPE mode sends each note's bends on its channel, scaled to the Bend Range
+// port (not the file's range); plain mode (Natural, the default) sends RPN 0
+// and the newest note's bends as the channel's (docs/plain-bends.md).
 TEST(bends_in_both_modes) {
     if (!lv2->plugin || kBundledModelCount) return;  // a bundled default model would already be loaded
     std::vector<float> audio = raw_audio("bend");
@@ -1377,7 +1398,7 @@ TEST(bends_in_both_modes) {
         host.bend_range = static_cast<float>(c.range);
         host.set_model(kBendModel);
         host.run_silence(64);
-        if (c.mode) CHECK(host.midi == mpe_configuration(0, c.range));
+        CHECK(host.midi == (c.mode ? mpe_configuration(0, c.range) : plain_rpn(0, 0, c.range)));
         host.midi.clear();
         host.mark_audio_start();
         std::mt19937 rng(30 + c.range);
@@ -1402,7 +1423,9 @@ TEST(bends_in_both_modes) {
             again.insert(again.end(), want.begin(), want.end());
             CHECK(host.midi == again);
         } else {
-            CHECK(bends == 0 && !host.midi.empty());
+            std::vector<Midi> want = expected_bend_mode(audio, g2m::BendMode::natural, false, c.range);
+            CHECK_MSG(host.midi == want, "plain: plugin %zu events, core %zu", host.midi.size(), want.size());
+            CHECK(bends > 100);
         }
         CHECK(host.run_allocations == 0);
     }
@@ -1410,7 +1433,7 @@ TEST(bends_in_both_modes) {
 
 // What the plugin should send with a Bend Mode: the core library's events
 // through g2m::BendModeFilter, then g2m::MpeOutput (mpe) or plain MIDI on
-// channel 1, retriggers included
+// channel 1, retriggers and channel bends included
 std::vector<Midi> expected_bend_mode(const std::vector<float>& audio, g2m::BendMode mode, bool mpe, int bend_range) {
     struct Collect : g2m::NoteSink, g2m::MidiWriter {
         std::vector<Midi> events;
@@ -1436,6 +1459,10 @@ std::vector<Midi> expected_bend_mode(const std::vector<float>& audio, g2m::BendM
                 midi(0x90, static_cast<std::uint8_t>(to), static_cast<std::uint8_t>(velocity));
             }
         }
+        void channel_bend(std::uint64_t sample, int value) override {
+            time = sample - 1;
+            midi(0xE0, static_cast<std::uint8_t>(value & 0x7F), static_cast<std::uint8_t>(value >> 7));
+        }
         void midi(std::uint8_t s, std::uint8_t d1, std::uint8_t d2) override { events.push_back({time, s, d1, d2}); }
     } sink;
     struct Through : g2m::EventSink {
@@ -1447,6 +1474,8 @@ std::vector<Midi> expected_bend_mode(const std::vector<float>& audio, g2m::BendM
     sink.mpe = mpe;
     through.out = &sink;
     through.filter.set_mode(mode);
+    through.filter.set_plain(!mpe);
+    through.filter.set_bend_range(bend_range);
     g2m::Transcriber transcriber(g2m::load_model(kBendModel).model);
     g2m::DecoderSettings settings = transcriber.decoder_settings();
     settings.bend_range = bend_range;
@@ -1462,7 +1491,7 @@ TEST(bend_modes_match_core_library) {
     std::vector<float> audio = raw_audio("bend");
     for (int output = 0; output < 2; ++output) {
         std::vector<Midi> natural;
-        for (int mode = 0; mode < 3; ++mode) {
+        for (int mode = 0; mode < 4; ++mode) {
             Host host(lv2->plugin, 48000);
             host.output_mode = static_cast<float>(output);
             host.bend_mode = static_cast<float>(mode);
@@ -1483,15 +1512,106 @@ TEST(bend_modes_match_core_library) {
                 bool on_after_off = (a.status & 0xF0) == 0x80 && (b.status & 0xF0) == 0x90 && a.time == b.time;
                 retriggers += on_after_off && (a.status & 0x0F) == (b.status & 0x0F) && std::abs(a.pitch - b.pitch) == 1;
             }
+            bool bending = mode == 0 || mode == 3;  // natural, auto
             if (mode == 0) natural = host.midi;
-            else if (output == 1 || mode == 1) CHECK_MSG(host.midi != natural, "output %d mode %d", output, mode);
+            else if (output == 1 && mode == 3) CHECK(host.midi == natural);  // Auto is Natural in MPE
+            else CHECK_MSG(host.midi != natural, "output %d mode %d", output, mode);
             if (output == 1) CHECK_MSG(valid_mpe_notes(host.midi), "mode %d", mode);
             if (mode == 1) CHECK_MSG(retriggers > 10, "output %d: %ld retriggers", output, retriggers);
-            if (mode >= 1 && output == 1) CHECK(bends < 10);
-            if (output == 0) CHECK(bends == 0);
+            if (mode == 3 && output == 0) CHECK_MSG(retriggers > 0, "auto: %ld retriggers", retriggers);
+            if (bending) CHECK_MSG(bends > 100, "output %d mode %d: %ld bends", output, mode, bends);
+            else if (output == 1) CHECK(bends < 10);
+            else CHECK(bends == 0);
             CHECK(host.run_allocations == 0);
         }
     }
+}
+
+// Auto's channel bends in plain output are scaled to the Bend Range too
+TEST(plain_auto_bend_range) {
+    if (!lv2->plugin || kBundledModelCount) return;  // a bundled default model would already be loaded
+    std::vector<float> audio = raw_audio("bend");
+    Host host(lv2->plugin, 48000);
+    host.bend_mode = 3;
+    host.bend_range = 48;
+    host.set_model(kBendModel);
+    host.run_silence(64);
+    host.midi.clear();
+    host.mark_audio_start();
+    std::mt19937 rng(60);
+    host.run_audio(audio, rng);
+    std::vector<Midi> want = expected_bend_mode(audio, g2m::BendMode::autobend, false, 48);
+    CHECK_MSG(host.midi == want, "plugin %zu events, core %zu", host.midi.size(), want.size());
+    CHECK(host.midi != expected_bend_mode(audio, g2m::BendMode::autobend, false, 12));
+}
+
+// Plain output: RPN 0 on the channel in Natural and Auto, when the range,
+// channel or output mode changes or one of them is chosen; a bent channel
+// goes back to no bend when its notes are ended
+TEST(plain_bend_range_and_reset) {
+    if (!lv2->plugin || kBundledModelCount) return;  // a bundled default model would already be loaded
+    auto controls = [](const std::vector<Midi>& midi) {
+        std::vector<Midi> out;
+        for (Midi m : midi)
+            if ((m.status & 0xF0) == 0xB0) out.push_back({0, m.status, m.pitch, m.velocity});
+        return out;
+    };
+    Host host(lv2->plugin, 48000);
+    host.set_model(kBendModel);
+    host.run_silence(64);
+    CHECK(controls(host.midi) == plain_rpn(0, 0));
+    host.midi.clear();
+    host.run_silence(64);
+    CHECK(controls(host.midi).empty());  // once (the test model plays notes even in silence)
+    host.bend_range = 2;
+    host.run_silence(64);
+    CHECK(controls(host.midi) == plain_rpn(0, 0, 2));
+    host.midi.clear();
+    host.bend_mode = 1;  // retrigger: no RPN, even on a new channel
+    host.channel = 2;
+    host.run_silence(64);
+    CHECK(controls(host.midi).empty());
+    host.bend_mode = 3;  // auto: sent on the channel now
+    host.run_silence(64);
+    CHECK(controls(host.midi) == plain_rpn(0, 1, 2));
+    host.midi.clear();
+    host.output_mode = 1;
+    host.run_silence(64);
+    host.midi.clear();
+    host.output_mode = 0;  // back to plain: again
+    host.run_silence(64);
+    std::vector<Midi> c = controls(host.midi);
+    std::vector<Midi> want = plain_rpn(0, 1, 2);
+    CHECK(c.size() >= want.size() && std::vector<Midi>(c.end() - static_cast<long>(want.size()), c.end()) == want);
+
+    // Natural, bent: a channel change ends the notes and unbends the old channel
+    Host bent(lv2->plugin, 48000);
+    bent.set_model(kBendModel);
+    bent.run_silence(64);
+    std::vector<float> audio = raw_audio("bend");
+    std::size_t at = 0;
+    auto last_bend = [&] {
+        int value = 8192;
+        for (const Midi& m : bent.midi)
+            if ((m.status & 0xF0) == 0xE0) value = m.pitch | m.velocity << 7;
+        return value;
+    };
+    for (; at + 64 <= audio.size() && (held(bent.midi).empty() || last_bend() == 8192); at += 64)
+        bent.run(audio.data() + at, 64);
+    CHECK(!held(bent.midi).empty() && last_bend() != 8192);
+    std::size_t before = bent.midi.size();
+    bent.channel = 3;
+    bent.run(audio.data() + at, 64);
+    std::vector<Midi> after(bent.midi.begin() + static_cast<long>(before), bent.midi.end());
+    bool unbent = false;
+    for (const Midi& m : after) unbent = unbent || (m.status == 0xE0 && m.pitch == 0 && m.velocity == 64);
+    std::vector<Midi> on_first;  // channel 1's notes: all ended
+    for (const Midi& m : bent.midi)
+        if ((m.status & 0x0F) == 0) on_first.push_back(m);
+    CHECK(unbent && held(on_first).empty());
+    for (const Midi& m : after)
+        if ((m.status & 0xF0) == 0x90) CHECK((m.status & 0x0F) == 2);  // new notes on channel 3
+    CHECK(bent.run_allocations == 0);
 }
 
 // Retriggered notes the plugin ends itself (here channel changes) aren't

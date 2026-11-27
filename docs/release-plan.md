@@ -224,7 +224,9 @@ block. Events at the same sample keep the order: offs, then ons.
 
 `bend_mode`:
 
-- **Natural:** as now. MPE carries per-note bends; plain carries none.
+- **Natural:** as now. MPE carries per-note bends; plain carries none
+  (since `docs/plain-bends.md`, 2026-11-27: the channel bend follows the
+  newest note, and a fourth mode, Auto, bends only a note alone).
 - **Retrigger:** the bend is rounded to whole semitones, with ±0.2
   semitone hysteresis so vibrato doesn't flicker between steps. When it
   reaches a new semitone, the note ends and a note at the new pitch starts,

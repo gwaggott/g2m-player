@@ -167,8 +167,8 @@ and automation work too.
 | Input Gain | −24 to +24 dB, applied only to what the model hears. |
 | MIDI Channel | 1–16, for plain output. Changing it ends the notes that are on. |
 | Output Mode | **Plain** (the default): every note on the MIDI Channel. **MPE**: each note on its own guitar string's channel, for MPE synths. Changing it ends the notes that are on. See [MPE output](#mpe-output). |
-| MPE Bend Range | 1–96 semitones, default 12: the pitch-bend range the plugin tells an MPE synth (RPN 0), and the scale of the model's bends. Set it to 48 for a synth that ignores RPN 0. |
-| Bend Mode | What becomes of the model's string bends (models with bends only). **Natural** (the default): sent as they are, in MPE. **Retrigger**: each time a bend reaches another semitone (vibrato within 0.2 semitones past half-way is ignored) the note ends and a note at the new pitch starts, with the same velocity, on the same channel; it works in plain output too, with any synth. **Off**: no bends. Each note keeps the mode it started in. |
+| Bend Range | 1–96 semitones, default 12, for both outputs: the scale of the model's bends, and the pitch-bend range the plugin tells the synth (RPN 0, on the MPE member channels, or on the MIDI Channel in plain output with Bend Mode Natural or Auto). **Match it to your synth patch's pitch-bend range for the right pitch**: set the patch to 12, or this to the patch's (often 2 in plain synths, 48 in MPE synths that ignore RPN 0). |
+| Bend Mode | What becomes of the model's string bends (models with bends only). **Natural** (the default): sent as they are; in plain output the channel's pitch bend follows the newest note, and the other notes sounding move with it. **Retrigger**: each time a bend reaches another semitone (vibrato within 0.2 semitones past half-way is ignored) the note ends and a note at the new pitch starts, with the same velocity, on the same channel; it works with any synth. **Off**: no bends. **Auto**: in plain output, a note's bend is smooth on the channel while it is the only note sounding; while others sound, bends retrigger by semitones, so a bend doesn't drag the other notes with it. In MPE output Auto is Natural. Each note keeps the mode it started in. See [Bends in plain output](#bends-in-plain-output). |
 | Output Level | −60 to +12 dB, default 0: the level of the audio output (the gated guitar). The model doesn't hear it. |
 | Mute | Silences the audio output; the MIDI carries on. |
 | Sustain Mode | What the sustain pedal does to the notes it sends. **Piano** (the default): notes that end while the pedal is down sound on until it comes up; a note played again is restarted. **Sostenuto**: only the notes sounding when the pedal goes down sound on. **Freeze**: the notes sounding when the pedal goes down sound on, without bends, and no new notes start until it comes up. **Off**. |
@@ -206,6 +206,7 @@ the current model:
 | MPE retrigger lead | MPE output, Bend Mode Retrigger |
 | Pad (freeze) | MPE output, Sustain Mode Freeze |
 | Noisy pickups (gated) | Gate Threshold −60 dB, Gate Release 80 ms |
+| Smooth bends (plain, Auto) | Bend Mode Auto (plain output); set the synth patch's bend range to the Bend Range, 12 |
 
 The **Preset** menu in the plugin's window lists them in every format
 (LV2 hosts also list them by name), followed by your own presets. **Save
@@ -246,11 +247,33 @@ note-ons.
 With a pitch-offset head (format version 4), each note's bends, vibrato
 and slides go out as pitch bend on its own channel, updated every 1.33 ms
 block while it sounds; small offsets (under a quarter tone by default)
-count as none. The MPE Bend Range control sets both the range the synth
-is told (RPN 0) and the range the bends are scaled to. Plain mode sends
-no pitch bend.
+count as none. The Bend Range control sets both the range the synth
+is told (RPN 0) and the range the bends are scaled to: match it to the
+synth patch.
 [docs/mpe-output.md](docs/mpe-output.md) has the exact rule and the
 measurements.
+
+### Bends in plain output
+
+Plain output has one pitch bend for the whole channel, so it can bend one
+note at a time. With a version 4 model:
+
+- **Natural** (the default) bends the channel with the newest note: right
+  for single lines and solos; in a chord, the notes still sounding bend
+  with it.
+- **Auto** bends the channel only while one note sounds, and retriggers by
+  semitones while more do (a bent note left alone takes the channel back).
+  Better under ringing notes and double stops, at the cost of re-struck
+  notes.
+- **Retrigger** and **Off** never bend the channel.
+
+In Natural and Auto the plugin sends RPN 0 (the Bend Range) on the MIDI
+Channel at the start and whenever the range, channel or mode changes.
+**Set the synth patch's pitch-bend range to the Bend Range** (or the Bend
+Range to the patch's): a synth that honours RPN 0 does it by itself, but
+many plain synths keep their own range (often ±2), and the bends then come
+out the wrong size. [docs/plain-bends.md](docs/plain-bends.md) has the
+rules.
 
 Outside a DAW:
 
@@ -269,7 +292,7 @@ JACK server running it opens JACK ports; without one it can't be set up.
 ## Command-line tools
 
 ```bash
-build/core/g2m-transcribe --model models/M.g2m IN.wav [-o OUT.mid] [--block N] [--set KEY=VALUE] [--events OUT.json] [--mpe] [--bend-range N] [--decode REF.f32]
+build/core/g2m-transcribe --model models/M.g2m IN.wav [-o OUT.mid] [--block N] [--set KEY=VALUE] [--events OUT.json] [--mpe] [--bend-range N] [--bend-mode MODE] [--decode REF.f32]
 build/core/g2m-bench --model models/M.g2m [--wav IN.wav] [--stages]
 ```
 
@@ -285,7 +308,11 @@ build/core/g2m-bench --model models/M.g2m [--wav IN.wav] [--stages]
   note-on's string probabilities, onset type and bend, and the bend
   events. `--mpe` writes MPE as the plugin sends it and prints how the
   strings were chosen; `--bend-range N` scales the bends to ±N semitones
-  and sends that range (default: the model's, 12). `--decode REF.f32`
+  and sends that range (default: the model's, 12). `--bend-mode
+  natural|retrigger|off|auto` puts the notes through the plugin's Bend
+  Mode first, so plain files get the channel pitch bend (after RPN 0) and
+  retriggers, and prints how many of each it made; without it the file is
+  the reference's, with no Bend Mode. `--decode REF.f32`
   decodes `reference.py --outputs`' outputs instead of running the model,
   for exact comparisons.
 - **`g2m-bench`** measures single-thread time per 64-sample block against
@@ -333,8 +360,8 @@ change) needs the training code: `core/test/make_vectors.py`, with
 ## Limitations
 
 - Note-on / note-off with velocity only, no pitch bend, as the model
-  was first trained, plus per-note pitch bend in MPE mode with a
-  version 4 model. In MPE mode the string comes from the model's string
+  was first trained, plus pitch bend with a version 4 model: per note in
+  MPE mode, one note at a time on the channel in plain mode. In MPE mode the string comes from the model's string
   head when it has one, else from a rule.
 - CPU: about 8 % of the real-time budget on a fast desktop core and 15 %
   on an efficiency core (SSE2; `docs/performance-plan.md`), but not yet

@@ -10,7 +10,12 @@
 // ignored.
 //
 // Then the Bend Mode (g2m::BendModeFilter): the model's bends as they are,
-// as retriggered notes (which work in plain mode too), or none.
+// as retriggered notes, Auto, or none. In plain output the bends are the
+// channel's one pitch bend (docs/plain-bends.md), following the newest note
+// (Natural) or only a note alone (Auto), with RPN 0 = the Bend Range sent on
+// the channel in those modes at the start, and whenever the range, channel
+// or output mode changes or one of them is chosen; ending the notes there
+// also takes a bent channel back to no bend.
 //
 // The model hears 48 kHz (its own rate): at another host rate the gated
 // audio goes through a resampler (g2m::Resampler, built with the model's
@@ -45,7 +50,7 @@
 // a lower zone with one member channel per string (chosen with the model's
 // string probabilities when it has them; legato notes overlap the note they
 // continue on its channel; with a pitch-offset head, each note's pitch
-// bend on its channel, scaled to the MPE Bend Range), configured with the MPE
+// bend on its channel, scaled to the Bend Range), configured with the MPE
 // Configuration Message and the pitch-bend range at the start of the first
 // run after activation and whenever MPE is chosen; the MIDI channel is then
 // unused. Leaving MPE turns the zone off.
@@ -315,6 +320,7 @@ private:
         void retrigger(std::uint64_t sample, int from, int to, int velocity) override {
             plugin->retrigger(from, to, velocity, offset(sample));
         }
+        void channel_bend(std::uint64_t sample, int value) override { plugin->channel_bend(value, offset(sample)); }
         // The event's frame ends at `sample`; it belongs on the frame's last
         // sample, which arrived in this buffer.
         std::uint32_t offset(std::uint64_t sample) const { return static_cast<std::uint32_t>(sample - start - 1); }
@@ -426,9 +432,9 @@ private:
         OutputMode mode = params_[kOutputMode] >= 0.5f ? OutputMode::mpe : OutputMode::plain;
         int range = std::clamp(static_cast<int>(std::lround(params_[kBendRange])), 1, g2m::kMaxBendRange);
         bool mode_changed = mode != mode_;
-        if (mode_changed || (mode_ == OutputMode::plain && channel != channel_)) {
-            notes_off_pending_ = true;  // end the held notes as they were sent
-        }
+        bool channel_changed = mode_ == OutputMode::plain && channel != channel_;
+        if (mode_changed || channel_changed) notes_off_pending_ = true;  // end the held notes as they were sent
+        if (mode_changed || channel_changed || configure_pending_) plain_range_sent_ = 0;
         MpeSink mpe_sink;
         mpe_sink.plugin = this;
         if (notes_off_pending_) {
@@ -437,6 +443,7 @@ private:
             } else {
                 for (int pitch = 0; pitch < 128; ++pitch)
                     if (held_[pitch]) send_midi(0, 0x80, pitch, 0);
+                if (bends_.channel_bend() != 8192) channel_bend(8192, 0);  // on the channel the notes were on
             }
             sustain_.reset();
             bends_.reset();
@@ -453,6 +460,12 @@ private:
             else if (range != bend_range_sent_) g2m::MpeOutput::send_bend_range(range, mpe_sink);
             bend_range_sent_ = range;
         }
+        auto bend_mode = static_cast<g2m::BendMode>(std::clamp(static_cast<int>(std::lround(params_[kBendMode])), 0, 3));
+        bool plain_bends = bend_mode == g2m::BendMode::natural || bend_mode == g2m::BendMode::autobend;
+        if (mode_ == OutputMode::plain && plain_bends && range != plain_range_sent_) {
+            g2m::MpeOutput::send_channel_bend_range(channel_, range, mpe_sink);
+            plain_range_sent_ = range;
+        }
         configure_pending_ = false;
 
         if (transcriber_) apply_settings(range);
@@ -461,7 +474,9 @@ private:
         write_sink_.start = host_position_;
         auto sustain_mode = static_cast<g2m::SustainMode>(std::clamp(static_cast<int>(std::lround(params_[kSustainMode])), 0, 3));
         bend_sink_.plugin = this;
-        bends_.set_mode(static_cast<g2m::BendMode>(std::clamp(static_cast<int>(std::lround(params_[kBendMode])), 0, 2)));
+        bends_.set_mode(bend_mode);
+        bends_.set_plain(mode_ == OutputMode::plain);
+        bends_.set_bend_range(range);
         sustain_.set_mode(sustain_mode, sample_at(0), bend_sink_);
         sustain_.set_pedal(pedal_down(), sample_at(0), bend_sink_);
 
@@ -511,7 +526,7 @@ private:
         params_[kInputLevel] = level_ > 0 ? std::max(20.0f * std::log10(level_), kMeterFloorDb) : kMeterFloorDb;
     }
 
-    // Onset Threshold: 0 means the model's own (tuned) threshold. MPE Bend
+    // Onset Threshold: 0 means the model's own (tuned) threshold. Bend
     // Range: the range the bends are scaled to, whatever the model's (format
     // version 4), so they match the RPN 0 sent.
     void apply_settings(int bend_range) {
@@ -537,7 +552,7 @@ private:
         }
     }
 
-    // MPE mode only: plain MIDI carries no bends
+    // MPE mode only: plain output gets its bends as channel_bend
     void bend(const g2m::BendEvent& e, std::uint32_t offset) {
         if (mode_ != OutputMode::mpe) return;
         MpeSink mpe;
@@ -557,6 +572,12 @@ private:
             send_midi(offset, 0x80, from, 0);
             send_midi(offset, 0x90, to, velocity);
         }
+    }
+
+    // Plain output: the channel's pitch bend
+    void channel_bend(int value, std::uint32_t offset) {
+        send_raw(offset, static_cast<std::uint8_t>(0xE0 | channel_), static_cast<std::uint8_t>(value & 0x7F),
+                 static_cast<std::uint8_t>(value >> 7));
     }
 
     // A note-on or note-off on the plain output's channel
@@ -682,6 +703,7 @@ private:
     OutputMode mode_ = OutputMode::plain;
     g2m::MpeOutput mpe_;  // the strings' notes in MPE mode
     int bend_range_sent_ = 0;
+    int plain_range_sent_ = 0;  // the RPN 0 sent on the plain channel, 0 for none
     bool held_[128] = {};  // notes sent and not yet ended
 
     DISTRHO_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(G2mPlugin)

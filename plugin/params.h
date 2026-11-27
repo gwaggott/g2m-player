@@ -112,9 +112,11 @@ inline void init(std::uint32_t index, Parameter& p) {
         case kBendRange:
             p.hints = kParameterIsAutomatable | kParameterIsInteger;
             p.symbol = "bend_range";
-            p.name = "MPE Bend Range";
-            p.description = "Pitch-bend range sent to the MPE member channels (RPN 0), in semitones; the model's "
-                            "bends are scaled to it. Set it to what the synth uses if it ignores RPN 0 (often 48).";
+            p.name = "Bend Range";
+            p.description = "Pitch-bend range in semitones: the model's bends are scaled to it, and it is sent as "
+                            "RPN 0 (to the MPE member channels, or the plain MIDI Channel in Natural and Auto). "
+                            "Match it to the synth patch's bend range for the right pitch (often 2 in plain "
+                            "synths, 48 in MPE synths that ignore RPN 0).";
             p.unit = "semitones";
             p.ranges = ParameterRanges(12.0f, 1.0f, static_cast<float>(g2m::kMaxBendRange));
             break;
@@ -212,13 +214,16 @@ inline void init(std::uint32_t index, Parameter& p) {
             p.symbol = "bend_mode";
             p.name = "Bend Mode";
             p.description = "What becomes of the model's pitch bends (models with bends only). Natural: sent as "
-                            "they are (MPE only). Retrigger: a new note each time a bend reaches another semitone, in plain or MPE output. Off: none.";
-            p.ranges = ParameterRanges(0.0f, 0.0f, 2.0f);
-            p.enumValues.count = 3;
+                            "they are; in plain output the channel bend follows the newest note. Retrigger: a new "
+                            "note each time a bend reaches another semitone. Off: none. Auto: in plain output, bends "
+                            "smooth while one note sounds and retriggered while more do; in MPE, Natural.";
+            p.ranges = ParameterRanges(0.0f, 0.0f, 3.0f);
+            p.enumValues.count = 4;
             p.enumValues.restrictedMode = true;
-            p.enumValues.values = new ParameterEnumerationValue[3]{ParameterEnumerationValue(0.0f, "Natural"),
+            p.enumValues.values = new ParameterEnumerationValue[4]{ParameterEnumerationValue(0.0f, "Natural"),
                                                                    ParameterEnumerationValue(1.0f, "Retrigger"),
-                                                                   ParameterEnumerationValue(2.0f, "Off")};
+                                                                   ParameterEnumerationValue(2.0f, "Off"),
+                                                                   ParameterEnumerationValue(3.0f, "Auto")};
             break;
         case kModelLoaded:
             p.hints = kParameterIsOutput | kParameterIsInteger;
