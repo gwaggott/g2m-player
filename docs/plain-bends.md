@@ -1,6 +1,6 @@
 # Pitch bend in plain output
 
-Plan, 2026-11-27; the decisions are at the end. Steps 1–4 done.
+Plan, 2026-11-27; the decisions are at the end. Steps 1–5 done; step 6 measured, listening open.
 
 Plain output puts every note on one MIDI channel, and a pitch-bend message
 bends the whole channel, so plain output has sent no bends: Bend Mode
@@ -188,12 +188,55 @@ before Auto is offered as more than an option.
    (DPF's ttl generator loads the plugin without the ASan runtime first),
    so the LV2 test runs in the plain and local builds; the core tests pass
    under ASan.
-5. Docs.
-6. Listen and measure on real DI recordings with the bundled model: how
+5. **Done 2026-11-27.** Docs (with step 4: README, `CLAUDE.md`, the release plan, `docs/mpe-output.md`).
+6. **Measured 2026-11-27; listening open.** Listen and measure on real DI recordings with the bundled model: how
    often Auto steps because another note sounds, and how Natural's lead
    sounds in chords; adjust (for example, treat a note as gone sooner)
    only on what this shows.
 
+   The bundled model (dead band 0.25 semitone, Bend Range 12) on 12
+   GuitarSet solos, 6 GuitarSet comps and 7 IDMT-SMT-GUITAR DI licks,
+   through `g2m-transcribe --events` and `--bend-mode`, sustain pedal off.
+   Time-weighted over each note's bend (a one-off script, not kept):
+
+   | | solos | comps | DI licks |
+   |---|---|---|---|
+   | notes sounding (note-seconds) | 309 s | 157 s | 39 s |
+   | time with 2+ notes sounding | 29 % | 88 % | 17 % |
+   | bent time (≥ 0.25 semitone) | 56.8 s | 47.6 s | 2.2 s |
+   | … of it with the note alone (Auto smooth) | 31 % | 3 % | 91 % |
+   | … of it on the lead (Natural sends it) | 67 % | 34 % | 91 % |
+   | other notes dragged by Natural (note-seconds) | 26 s | 45 s | 0 |
+   | bent ≥ 0.5 semitone | 8.8 s | 5.5 s | 0.5 s |
+   | … of it alone / on the lead | 23 % / 57 % | 5 % / 39 % | 86 % / 86 % |
+   | channel bends, Natural / Auto | 36,284 / 17,000 | 16,351 / 1,252 | 1,813 / 1,804 |
+   | retriggers, Retrigger / Auto | 226 / 217 | 204 / 207 | 7 / 5 |
+
+   What it shows:
+
+   - **Single-note DI lines** (the licks): nearly all bending is on a note
+     alone, so Natural and Auto send the same bends, and both are right.
+   - **The solos ring**: other notes are still sounding (by the decoder's
+     note-offs) for 29 % of the time, so Auto sends a bend smoothly for
+     only a third of the bent time and steps the rest (about as many
+     retriggers as Retrigger). Natural sends two thirds, but bends the
+     ringing notes with it for 26 note-seconds.
+   - **Chords**: most "bends" in the comps are small (≥ 0.25 and < 0.5
+     semitone for 42 of the 47.6 s), probably the pitch-offset head's
+     noise or real detuning on chord notes. In plain Natural the newest
+     note's wobble moves the whole chord (45 note-seconds dragged); Auto
+     barely bends (3 %), so chords stay in tune.
+   - Retriggers are rare in every mode (a few per minute): most bends
+     stay within a semitone's hysteresis.
+
+   No change made yet: the defaults stay as decided. Open, for the user:
+   whether Natural is the right default for plain output given the chord
+   wobble (Auto, or a larger dead band for plain output, would avoid it);
+   and whether Auto should count a note as gone sooner (for example a
+   note older than the newest by more than some time, since the player
+   has no level per note) so solos bend smoothly more often. Files to
+   listen to (plain MIDI in each mode, Bend Range 12) are in the
+   git-ignored `tmp/listen/plain-bends/`.
 ## Decisions (the user, 2026-11-27)
 
 - **One Bend Range** for both outputs, default 12, matched to the synth by

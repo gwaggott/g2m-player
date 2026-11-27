@@ -552,7 +552,7 @@ private:
         }
     }
 
-    // MPE mode only: plain MIDI carries no bends
+    // MPE mode only: plain output gets its bends as channel_bend
     void bend(const g2m::BendEvent& e, std::uint32_t offset) {
         if (mode_ != OutputMode::mpe) return;
         MpeSink mpe;
