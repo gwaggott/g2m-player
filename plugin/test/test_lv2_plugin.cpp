@@ -1436,6 +1436,10 @@ std::vector<Midi> expected_bend_mode(const std::vector<float>& audio, g2m::BendM
                 midi(0x90, static_cast<std::uint8_t>(to), static_cast<std::uint8_t>(velocity));
             }
         }
+        void channel_bend(std::uint64_t sample, int value) override {
+            time = sample - 1;
+            midi(0xE0, static_cast<std::uint8_t>(value & 0x7F), static_cast<std::uint8_t>(value >> 7));
+        }
         void midi(std::uint8_t s, std::uint8_t d1, std::uint8_t d2) override { events.push_back({time, s, d1, d2}); }
     } sink;
     struct Through : g2m::EventSink {

@@ -14,17 +14,19 @@ int bend_step(int step, float semitones) {
 void BendModeFilter::note(const NoteEvent& e, NoteSink& out) {
     int p = e.pitch;
     if (e.velocity == 0) {
-        end(p, e.sample, out);
+        end(p, e.sample, out, true);
         return;
     }
-    end(p, e.sample, out);  // a note-on with no note-off between
+    end(p, e.sample, out, false);  // a note-on with no note-off between
     Note n;
     n.on = true;
     n.mode = mode_;
     n.velocity = e.velocity;
+    if (e.has_bend) n.bend = e.bend;
+    n.order = ++order_;
     if (n.mode == BendMode::retrigger) n.step = bend_step(0, e.semitones);
     n.out = std::clamp(p + n.step, 0, 127);
-    if (int other = owner_[n.out]) end(other - 1, e.sample, out);  // a retriggered note was there
+    if (int other = owner_[n.out]) end(other - 1, e.sample, out, false);  // a retriggered note was there
     NoteEvent sent = e;
     sent.pitch = n.out;
     if (n.mode != BendMode::natural) {
@@ -33,6 +35,10 @@ void BendModeFilter::note(const NoteEvent& e, NoteSink& out) {
     }
     notes_[p] = n;
     owner_[n.out] = p + 1;
+    if (plain_) {
+        lead_ = p;
+        set_channel(e.sample, wanted(n), out);
+    }
     out.note(sent);
 }
 
@@ -40,7 +46,9 @@ void BendModeFilter::bend(const BendEvent& e, NoteSink& out) {
     Note& n = notes_[e.pitch];
     if (!n.on || n.mode == BendMode::off) return;
     if (n.mode == BendMode::natural) {
-        out.bend(e);
+        n.bend = e.bend;
+        if (!plain_) out.bend(e);
+        else if (e.pitch == lead_) set_channel(e.sample, e.bend, out);
         return;
     }
     int step = bend_step(n.step, e.semitones);
@@ -58,9 +66,17 @@ void BendModeFilter::bend(const BendEvent& e, NoteSink& out) {
 void BendModeFilter::reset() {
     for (Note& n : notes_) n = Note();
     std::fill(owner_, owner_ + 128, 0);
+    channel_ = 8192;
+    lead_ = -1;
 }
 
-void BendModeFilter::end(int pitch, std::uint64_t sample, NoteSink& out) {
+void BendModeFilter::set_channel(std::uint64_t sample, int value, NoteSink& out) {
+    if (value == channel_) return;
+    channel_ = value;
+    out.channel_bend(sample, value);
+}
+
+void BendModeFilter::end(int pitch, std::uint64_t sample, NoteSink& out, bool hand_over) {
     Note& n = notes_[pitch];
     if (!n.on) return;
     NoteEvent off;
@@ -70,6 +86,12 @@ void BendModeFilter::end(int pitch, std::uint64_t sample, NoteSink& out) {
     n.on = false;
     owner_[n.out] = 0;
     out.note(off);
+    if (!plain_ || pitch != lead_) return;
+    lead_ = -1;
+    if (!hand_over) return;  // a note-on follows and sets the channel
+    for (int q = 0; q < 128; ++q)
+        if (notes_[q].on && (lead_ < 0 || notes_[q].order > notes_[lead_].order)) lead_ = q;
+    if (lead_ >= 0) set_channel(sample, wanted(notes_[lead_]), out);
 }
 
 }  // namespace g2m

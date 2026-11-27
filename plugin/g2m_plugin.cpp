@@ -315,6 +315,7 @@ private:
         void retrigger(std::uint64_t sample, int from, int to, int velocity) override {
             plugin->retrigger(from, to, velocity, offset(sample));
         }
+        void channel_bend(std::uint64_t sample, int value) override { plugin->channel_bend(value, offset(sample)); }
         // The event's frame ends at `sample`; it belongs on the frame's last
         // sample, which arrived in this buffer.
         std::uint32_t offset(std::uint64_t sample) const { return static_cast<std::uint32_t>(sample - start - 1); }
@@ -557,6 +558,12 @@ private:
             send_midi(offset, 0x80, from, 0);
             send_midi(offset, 0x90, to, velocity);
         }
+    }
+
+    // Plain output: the channel's pitch bend
+    void channel_bend(int value, std::uint32_t offset) {
+        send_raw(offset, static_cast<std::uint8_t>(0xE0 | channel_), static_cast<std::uint8_t>(value & 0x7F),
+                 static_cast<std::uint8_t>(value >> 7));
     }
 
     // A note-on or note-off on the plain output's channel

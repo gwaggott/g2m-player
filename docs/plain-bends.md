@@ -1,7 +1,6 @@
 # Pitch bend in plain output
 
-Plan, 2026-11-27. Not started. One Bend Range for both outputs, default
-12 (the user, 2026-11-27).
+Plan, 2026-11-27; the decisions are at the end. Step 1 done.
 
 Plain output puts every note on one MIDI channel, and a pitch-bend message
 bends the whole channel, so plain output has sent no bends: Bend Mode
@@ -70,7 +69,9 @@ greyed in plain output now).
 
 - The lead is the newest note sounding. A note-on makes it the lead: if
   the channel bend isn't already the note's own bend (the note-on's
-  `semitones`, usually 0), that bend is sent first, then the note-on.
+  bend, usually none), that bend is sent first, then the note-on. A
+  Retrigger or Off note (after a Bend Mode change) wants no bend, so its
+  note-on takes the channel to 8192, and its own bends never move it.
   Older notes still sounding jump with it: the cost of one channel.
 - The lead's bend events set the channel bend (when the 14-bit value
   changes). Other notes' bend events are dropped.
@@ -133,9 +134,17 @@ before Auto is offered as more than an option.
 
 ## Steps
 
-1. Core: `channel_bend`, Natural's lead in plain output;
+1. **Done 2026-11-27.** Core: `channel_bend`, Natural's lead in plain output;
    `test_bend_mode` cases for every rule above (break each condition and
    check a test fails, as for the decoder).
+   `BendModeFilter::set_plain` (false by default, so the plugin is
+   unchanged until step 4) and `NoteSink::channel_bend` (the plugin writes
+   `En lsb msb` on its channel; the LV2 test's expected output the same).
+   Per note, the last bend and a note-on counter; the hand-over scans the
+   128 notes for the newest sounding. A note-on with no note-off between,
+   or onto a retriggered note, ends the old note without a hand-over, so
+   the channel moves once, for the new note. Five new tests; each of the
+   eleven conditions, broken on purpose, fails one.
 2. Core: Auto; tests, including the 1 → 2 → 1 transitions, the range
    step, a step onto a sounding pitch, and Sustain holding a note.
 3. `g2m-transcribe` flags.
@@ -148,17 +157,15 @@ before Auto is offered as more than an option.
    sounds in chords; adjust (for example, treat a note as gone sooner)
    only on what this shows.
 
-## Decisions to make
+## Decisions (the user, 2026-11-27)
 
-- **RPN 0 in plain output:** send it (as above; a synth set by hand to
-  another range is reset to Bend Range), or don't (the user matches
-  Bend Range to the synth). Recommended: send it, as MPE does.
-- **Natural's lead hand-over** at the lead's note-off: send the new lead's
-  bend at once (correct pitch for the note left, but it bends the old
-  lead's release tail), or at its next bend event (none may come for a
-  steady note, which then stays at the old lead's bend until the next
-  note-on). Recommended: at once. It differs only when the old lead ended
-  still bent, and a wrong pitch that lasts is worse than a bent tail.
+- **One Bend Range** for both outputs, default 12, matched to the synth by
+  the user (above).
+- **RPN 0 in plain output:** sent, as MPE does (a synth set by hand to
+  another range is reset to Bend Range).
+- **Natural's lead hand-over** at the lead's note-off: the new lead's bend
+  is sent at once, after the note-off. It differs only when the old lead
+  ended still bent, and a wrong pitch that lasts is worse than a bent
+  release tail.
 - **Default Bend Mode:** stays Natural, which now bends in plain output
-  too (a change for anyone using plain output with a bend model), or
-  Off for plain. Recommended: Natural.
+  too (a change for anyone using plain output with a bend model).
