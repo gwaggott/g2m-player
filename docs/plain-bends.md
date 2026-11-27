@@ -1,6 +1,7 @@
 # Pitch bend in plain output
 
-Plan, 2026-11-27. Not started.
+Plan, 2026-11-27. Not started. One Bend Range for both outputs, default
+12 (the user, 2026-11-27).
 
 Plain output puts every note on one MIDI channel, and a pitch-bend message
 bends the whole channel, so plain output has sent no bends: Bend Mode
@@ -34,29 +35,36 @@ moves at a note-off only when Natural hands the lead to a note left bent
 differently; otherwise it waits for the next note-on or bend, so release
 tails aren't bent.
 
-## Plain Bend Range
+## Bend Range
 
-The synth's pitch-bend range, which plain output's bends are scaled to.
-A new parameter, appended: **Plain Bend Range**, `plain_bend_range`,
-1–96 semitones, default 2 (most synths' default). The channel bend sent
-for a bend of `s` semitones (relative to the pitch sent):
+One range for both outputs: the existing **MPE Bend Range** parameter
+is renamed **Bend Range** (symbol `bend_range` and port index unchanged,
+so saved projects and presets keep their value), 1–96 semitones, default
+12 as now. The decoder already scales every bend to it (`BendEvent::bend`),
+so plain output sends that value as the channel bend, as MPE sends it on
+the note's channel; Auto sends the part left after the note's step,
+`s − step` semitones, by the same formula:
 
     value = clamp(8192 + lrintf(s × 8192 / range), 0, 16383)
 
-The same formula as the decoder's, but from `semitones` and the plain
-range, so the MPE Bend Range (default 12, the decoder's scale) stays as it
-is and switching output modes needs no decoder change. A bend past the
-range is clipped in Natural; in Auto the note steps instead (below).
+A bend past the range is clipped in Natural; in Auto the note steps
+instead (below).
 
-**RPN 0** (the decision below): send the range on the plain channel
+**Match the synth.** The bends are right only when the synth patch's
+pitch-bend range equals Bend Range. Many plain synths and patches default
+to ±2, so either set the patch's range to 12 or set Bend Range to the
+patch's. The README says so next to the parameter, in the MPE and plain
+sections, and in the factory preset's description.
+
+**RPN 0** (the decision below): send Bend Range on the plain channel
 (`Bn 65 00 64 00 06 range 26 00 65 7F 64 7F`) at the start, when the
 range, channel or output mode changes, and when Bend Mode becomes
-Natural or Auto. A synth that honours it matches automatically; for one
-that doesn't, set Plain Bend Range to the synth's.
+Natural or Auto, as MPE output already sends it on its member channels.
+A synth that honours it matches by itself; for one that doesn't, the
+user matches them by hand.
 
-The UI's MIDI card shows Plain Bend Range in plain output and MPE Bend
-Range in MPE (one stepper, the unused one hidden as the MIDI Channel is
-greyed now).
+The UI's MIDI card shows the Bend Range stepper in both outputs (it is
+greyed in plain output now).
 
 ## Natural: the lead note
 
@@ -78,7 +86,7 @@ its detected pitch + step; the channel carries the rest, `s − step`, only
 while the note is the only one sounding.
 
 - **One note sounding:** its bend events set the channel bend to
-  `s − step`. When `|s − step|` would pass the Plain Bend Range, it steps
+  `s − step`. When `|s − step|` would pass Bend Range, it steps
   (a retrigger to `pitch + lround(s)`) and the channel carries the rest
   again. Its step doesn't otherwise change, so a bend is smooth.
 - **A second note starts** while the channel is bent: before its note-on,
@@ -104,32 +112,34 @@ before Auto is offered as more than an option.
 ## Where
 
 - `core/`: `BendModeFilter` gains the output (`set_plain(bool)`), the
-  plain range (`set_plain_range(int)`) and `BendMode::autobend` (appended:
+  bend range for Auto's remainders (`set_bend_range(int)`, the decoder's)
+  and `BendMode::autobend` (appended:
   0 natural, 1 retrigger, 2 off, 3 auto). `NoteSink` gains
   `channel_bend(sample, value)`, called only in plain output. MPE output
   is as now (Auto → natural). Per note: `semitones` last seen, and the
   lead order (the newest note-on per pitch: a counter, no allocation).
-- `plugin/`: `kPlainBendRange` appended (LV2 port, preset key
-  `plain_bend_range`), `bend_mode`'s range to 3 with the Auto label;
+- `plugin/`: `kBendRange` renamed Bend Range (description: both
+  outputs, match the synth), no longer greyed in plain output;
+  `bend_mode`'s range to 3 with the Auto label;
   plain output's `channel_bend` writes `En lsb msb` on the channel; a
   channel or mode change sends 8192 on the old channel with the
   notes-off; RPN 0 as above. Factory preset "Plain, smooth bends" (Auto).
 - `core/tools/g2m-transcribe`: `--bend-mode natural|retrigger|off|auto`
-  and `--plain-bend-range N`, so plain files with channel bends can be
+  (with the existing `--bend-range N`), so plain files with channel bends can be
   written and listened to (it applies no bend mode now).
-- Docs: README (Bend Mode, the new parameter, the factory preset, "Plain
-  mode sends no pitch bend" goes), `CLAUDE.md`, `docs/release-plan.md`'s
+- Docs: README (Bend Mode, Bend Range for both outputs and matching the
+  synth, the factory preset, "Plain mode sends no pitch bend" goes), `CLAUDE.md`, `docs/release-plan.md`'s
   bend modes pointing here.
 
 ## Steps
 
-1. Core: `channel_bend`, Natural's lead in plain output, `plain_range`;
+1. Core: `channel_bend`, Natural's lead in plain output;
    `test_bend_mode` cases for every rule above (break each condition and
    check a test fails, as for the decoder).
 2. Core: Auto; tests, including the 1 → 2 → 1 transitions, the range
    step, a step onto a sounding pitch, and Sustain holding a note.
 3. `g2m-transcribe` flags.
-4. Plugin: the parameter, RPN 0, the channel-change bend reset, the UI
+4. Plugin: Bend Range for both outputs, RPN 0, the channel-change bend reset, the UI
    stepper, the factory preset; the LV2 test compares the plugin's plain
    MIDI with the core's in every bend mode, and counts no allocations.
 5. Docs.
@@ -141,8 +151,8 @@ before Auto is offered as more than an option.
 ## Decisions to make
 
 - **RPN 0 in plain output:** send it (as above; a synth set by hand to
-  another range is reset to Plain Bend Range), or don't (the user matches
-  Plain Bend Range to the synth). Recommended: send it, as MPE does.
+  another range is reset to Bend Range), or don't (the user matches
+  Bend Range to the synth). Recommended: send it, as MPE does.
 - **Natural's lead hand-over** at the lead's note-off: send the new lead's
   bend at once (correct pitch for the note left, but it bends the old
   lead's release tail), or at its next bend event (none may come for a
